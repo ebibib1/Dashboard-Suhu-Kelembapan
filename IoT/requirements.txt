@@ -1,3 +1,0 @@
-streamlit>=1.30
-pymodbus>=3.6
-pandas>=2.0

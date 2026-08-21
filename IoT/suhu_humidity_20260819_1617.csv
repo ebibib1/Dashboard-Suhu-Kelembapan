@@ -1,2 +1,0 @@
-timestamp,host,port,slave,address,raw_temperature,raw_humidity,temperature_c,humidity_rh,status,error
-2026-08-19T16:17:59,192.168.0.7,502,1,1,293,680,29.3,68.0,OK,
