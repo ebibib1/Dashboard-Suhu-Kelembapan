@@ -16,24 +16,12 @@ interface Device {
   is_active: boolean;
 }
 
-interface DataPoint {
-  id: number;
-  device_id: number;
-  name: string;
-  function_code: number;
-  address: number;
-  register_count: number;
-  data_type: string;
-  scale: number;
-  offset: number;
-  unit: string;
-  enabled: boolean;
-}
+
 
 export default function SensorsPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [devices, setDevices] = useState<Device[]>([]);
-  const [dataPoints, setDataPoints] = useState<DataPoint[]>([]);
+
   const [loading, setLoading] = useState(true);
 
   // Form states for Device
@@ -46,7 +34,7 @@ export default function SensorsPage() {
   const [dpName, setDpName] = useState('');
   const [functionCode, setFunctionCode] = useState(4);
   const [address, setAddress] = useState(0);
-  const [dataType, setDataType] = useState('int16');
+  const [dataType] = useState('int16');
   const [scale, setScale] = useState(0.1);
   const [unit, setUnit] = useState('°C');
 
@@ -66,7 +54,10 @@ export default function SensorsPage() {
   };
 
   useEffect(() => {
-    fetchData();
+    const timer = setTimeout(() => {
+      void fetchData();
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleCreateDevice = async (e: React.FormEvent) => {
@@ -85,7 +76,7 @@ export default function SensorsPage() {
       });
       if (res.ok) {
         setDevName('');
-        fetchData();
+        void fetchData();
       }
     } catch (err) {
       console.error('Failed to create device:', err);
@@ -114,7 +105,7 @@ export default function SensorsPage() {
       });
       if (res.ok) {
         setDpName('');
-        fetchData();
+        void fetchData();
       }
     } catch (err) {
       console.error('Failed to create data point:', err);

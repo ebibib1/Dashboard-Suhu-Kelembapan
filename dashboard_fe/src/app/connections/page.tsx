@@ -40,7 +40,10 @@ export default function ConnectionsPage() {
   };
 
   useEffect(() => {
-    fetchConnections();
+    const timer = setTimeout(() => {
+      void fetchConnections();
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -64,7 +67,7 @@ export default function ConnectionsPage() {
       });
       if (res.ok) {
         setName('');
-        fetchConnections();
+        void fetchConnections();
       }
     } catch (err) {
       console.error('Failed to create connection', err);

@@ -22,7 +22,7 @@ interface DeviceData {
 
 export default function DashboardHome() {
   const [devices, setDevices] = useState<DeviceData[]>([]);
-  const [ws, setWs] = useState<WebSocket | null>(null);
+
   const [connected, setConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
 
@@ -52,7 +52,7 @@ export default function DashboardHome() {
       
       websocket.onopen = () => {
         setConnected(true);
-        setWs(websocket);
+
       };
       
       websocket.onmessage = (event) => {

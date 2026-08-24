@@ -32,7 +32,10 @@ export default function SchedulerPage() {
   };
 
   useEffect(() => {
-    fetchScheduler();
+    const timer = setTimeout(() => {
+      void fetchScheduler();
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -49,7 +52,7 @@ export default function SchedulerPage() {
       });
       if (res.ok) {
         alert('Pengaturan scheduler berhasil diperbarui!');
-        fetchScheduler();
+        void fetchScheduler();
       }
     } catch (err) {
       console.error('Failed to update scheduler:', err);

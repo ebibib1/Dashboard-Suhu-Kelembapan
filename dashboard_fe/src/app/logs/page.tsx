@@ -20,7 +20,7 @@ export default function LogsPage() {
 
   const fetchLogs = async () => {
     try {
-      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/logs/raw`);
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/readings/raw-logs`);
       if (res.ok) {
         setLogs(await res.json());
       }
@@ -32,7 +32,10 @@ export default function LogsPage() {
   };
 
   useEffect(() => {
-    fetchLogs();
+    const timer = setTimeout(() => {
+      void fetchLogs();
+    }, 0);
+    return () => clearTimeout(timer);
   }, []);
 
   return (
