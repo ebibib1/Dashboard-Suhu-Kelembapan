@@ -110,3 +110,32 @@ body {
   background: radial-gradient(circle, transparent 20%, #38bdf8 21%, #38bdf8 34%, transparent 35%, transparent);
   background-size: 20px 20px;
 }
+
+/* ── Smooth Page Entrance Animations ─────────────────────────────────────── */
+@keyframes pageFadeIn {
+  0% {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+.animate-page-entry {
+  animation: pageFadeIn 0.35s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(56, 189, 248, 0.15);
+  }
+  50% {
+    box-shadow: 0 0 25px rgba(56, 189, 248, 0.4);
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulseGlow 2.5s infinite ease-in-out;
+}

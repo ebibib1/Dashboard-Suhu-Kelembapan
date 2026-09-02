@@ -112,7 +112,7 @@ export default function SensorsPage() {
   return (
     <div className="min-h-screen bg-bg-app">
       <Sidebar />
-      <main className="ml-0 min-h-screen px-4 pb-20 pt-6 md:ml-20 md:px-8 md:py-8 lg:px-10">
+      <main className="ml-0 min-h-screen px-4 pb-20 pt-6 md:px-8 md:py-8 lg:px-10 animate-page-entry">
         
         {/* Header */}
         <div className="mb-8">

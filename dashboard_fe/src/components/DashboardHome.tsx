@@ -274,7 +274,7 @@ export default function DashboardHome() {
 
   return (
     <div className="min-h-screen bg-bg-app">
-      <main className="ml-0 min-h-screen px-4 pb-20 pt-6 md:px-8 md:py-8 lg:px-10">
+      <main className="ml-0 min-h-screen px-4 pb-20 pt-6 md:px-8 md:py-8 lg:px-10 animate-page-entry">
 
         {/* ── Error Banner ─────────────────────────────────────────────── */}
         {loadError && (
@@ -546,17 +546,7 @@ export default function DashboardHome() {
 
           {/* ══ RIGHT PANEL (1 col) ══════════════════════════════════════ */}
           <div className="flex flex-col gap-6 lg:col-span-1">
-
-            {/* Date & Time Card */}
-            <div className="rounded-[2rem] bg-white p-5 shadow-sm">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Waktu Sekarang</p>
-              <p className="mt-1 font-mono text-2xl font-extrabold text-slate-800">{formattedTime}</p>
-              <p className="mt-0.5 text-xs font-semibold text-slate-400">{formattedDate}</p>
-              <div className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
-                Update terakhir: <span className="font-bold text-slate-600">{lastUpdated}</span>
-              </div>
-            </div>
-
+            
             {/* Status Message Card */}
             <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-b from-sky-50 to-blue-100/60 p-6 shadow-sm">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm">

@@ -136,14 +136,20 @@ export default function Sidebar() {
                 <Link
                   key={item.name}
                   href={item.href}
-                  className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                  onClick={() => setIsOpen(false)}
+                  className={`flex items-center justify-between px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-200 hover:translate-x-1 active:scale-98 ${
                     isActive
-                      ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 shadow-inner'
+                      ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 shadow-inner font-bold'
                       : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
                   }`}
                 >
-                  <span className={`${isActive ? 'text-sky-400' : 'text-slate-400'}`}>{item.icon}</span>
-                  <span>{item.name}</span>
+                  <div className="flex items-center gap-3.5">
+                    <span className={`${isActive ? 'text-sky-400' : 'text-slate-400'}`}>{item.icon}</span>
+                    <span>{item.name}</span>
+                  </div>
+                  {isActive && (
+                    <span className="h-2 w-2 rounded-full bg-sky-400 shadow-sm shadow-sky-400/50" />
+                  )}
                 </Link>
               );
             })}
@@ -165,7 +171,7 @@ export default function Sidebar() {
             <Link
               key={item.name}
               href={item.href}
-              className={`flex flex-col items-center justify-center gap-1 transition-all duration-300 ${
+              className={`flex flex-col items-center justify-center gap-1 transition-all duration-900 ${
                 isActive ? 'text-sky-400 font-bold' : 'text-slate-400 hover:text-white'
               }`}
             >
