@@ -47,6 +47,81 @@ function arcPath(pct: number, r = 52) {
   return `M ${60 - r} 60 A ${r} ${r} 0 ${pct > 0.5 ? 1 : 0} 1 ${x.toFixed(2)} ${y.toFixed(2)}`;
 }
 
+// ─── Analog Clock Component ──────────────────────────────────────────────────
+function AnalogClock({ time }: { time: Date }) {
+  const seconds = time.getSeconds();
+  const minutes = time.getMinutes() + seconds / 60;
+  const hours = (time.getHours() % 12) + minutes / 60;
+
+  const secDeg = (seconds / 60) * 360;
+  const minDeg = (minutes / 60) * 360;
+  const hourDeg = (hours / 12) * 360;
+
+  return (
+    <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-slate-900 shadow-inner border-2 border-slate-700/60">
+      <svg viewBox="0 0 100 100" className="h-full w-full">
+        {/* Dial Ticks */}
+        {[...Array(12)].map((_, i) => {
+          const angle = (i * 30 * Math.PI) / 180;
+          const x1 = 50 + 38 * Math.sin(angle);
+          const y1 = 50 - 38 * Math.cos(angle);
+          const x2 = 50 + 44 * Math.sin(angle);
+          const y2 = 50 - 44 * Math.cos(angle);
+          return (
+            <line
+              key={i}
+              x1={x1}
+              y1={y1}
+              x2={x2}
+              y2={y2}
+              stroke={i % 3 === 0 ? '#38bdf8' : '#64748b'}
+              strokeWidth={i % 3 === 0 ? '3' : '1.5'}
+              strokeLinecap="round"
+            />
+          );
+        })}
+
+        {/* Hour Hand */}
+        <line
+          x1="50"
+          y1="50"
+          x2={50 + 22 * Math.sin((hourDeg * Math.PI) / 180)}
+          y2={50 - 22 * Math.cos((hourDeg * Math.PI) / 180)}
+          stroke="#ffffff"
+          strokeWidth="3.5"
+          strokeLinecap="round"
+        />
+
+        {/* Minute Hand */}
+        <line
+          x1="50"
+          y1="50"
+          x2={50 + 32 * Math.sin((minDeg * Math.PI) / 180)}
+          y2={50 - 32 * Math.cos((minDeg * Math.PI) / 180)}
+          stroke="#38bdf8"
+          strokeWidth="2.5"
+          strokeLinecap="round"
+        />
+
+        {/* Second Hand */}
+        <line
+          x1="50"
+          y1="50"
+          x2={50 + 36 * Math.sin((secDeg * Math.PI) / 180)}
+          y2={50 - 36 * Math.cos((secDeg * Math.PI) / 180)}
+          stroke="#ef4444"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
+
+        {/* Center Cap */}
+        <circle cx="50" cy="50" r="3.5" fill="#ef4444" />
+        <circle cx="50" cy="50" r="1.5" fill="#ffffff" />
+      </svg>
+    </div>
+  );
+}
+
 export default function DashboardHome() {
   const [devices, setDevices] = useState<DeviceData[]>([]);
   const [connected, setConnected] = useState(false);
@@ -199,7 +274,7 @@ export default function DashboardHome() {
 
   return (
     <div className="min-h-screen bg-bg-app">
-      <main className="ml-0 min-h-screen px-4 pb-20 pt-6 md:ml-20 md:px-8 md:py-8 lg:px-10">
+      <main className="ml-0 min-h-screen px-4 pb-20 pt-6 md:px-8 md:py-8 lg:px-10">
 
         {/* ── Error Banner ─────────────────────────────────────────────── */}
         {loadError && (
@@ -211,38 +286,93 @@ export default function DashboardHome() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+        {/* ── Top Header Section (Matching Diagram Layout) ────────────────── */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 mb-6">
+          {/* Card 1: Dashboard sensor & Monitoring Sensor with status on/off */}
+          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 p-7 text-white shadow-lg lg:col-span-6 flex flex-col justify-between min-h-[190px]">
+            <span className="absolute -right-8 -top-8 h-44 w-44 rounded-full bg-white/10 blur-xl pointer-events-none" />
+            <span className="absolute -bottom-10 right-20 h-36 w-36 rounded-full bg-white/5 blur-lg pointer-events-none" />
 
-          {/* ══ MAIN AREA (3 cols) ══════════════════════════════════════ */}
-          <div className="flex flex-col gap-6 lg:col-span-3">
+            <div>
+              <p className="text-xs font-black uppercase tracking-widest text-sky-200">
+                dashboard sensor
+              </p>
+              <h1 className="mt-1 text-3xl font-black tracking-tight md:text-4xl">
+                Monitoring Sensor
+              </h1>
+              <p className="mt-1 text-xs text-sky-100 max-w-md leading-relaxed">
+                Pemantauan real-time suhu, kelembapan, dan status koneksi perangkat Modbus.
+              </p>
+            </div>
 
-            {/* ── Header Banner ──────────────────────────────────────── */}
-            <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-600 p-8 text-white shadow-lg md:p-10">
-              {/* decorative circles */}
-              <span className="absolute -right-10 -top-10 h-52 w-52 rounded-full bg-white/10" />
-              <span className="absolute -bottom-12 right-24 h-40 w-40 rounded-full bg-white/5" />
-
-              <div className="relative z-10">
-                <p className="text-sm font-semibold uppercase tracking-widest text-sky-100">
-                  Dashboard Sensor
-                </p>
-                <h1 className="mt-1 text-3xl font-extrabold tracking-tight md:text-4xl">
-                  Monitor Suhu &amp; Kelembapan
-                </h1>
-                <p className="mt-2 max-w-sm text-sm text-sky-200">
-                  Pemantauan real-time kondisi lingkungan melalui sensor Modbus.
-                </p>
-                <div className="mt-4 flex items-center gap-2 text-xs font-semibold">
-                  <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 ${connected ? 'bg-emerald-400/20 text-emerald-200' : 'bg-red-400/20 text-red-200'}`}>
-                    <span className={`h-2 w-2 rounded-full ${connected ? 'animate-pulse bg-emerald-400' : 'bg-red-400'}`} />
-                    {connected ? 'Live Sync' : 'Offline'}
-                  </span>
-                  <span className="rounded-full bg-white/10 px-3 py-1 font-mono text-sky-100">
-                    {formattedTime}
-                  </span>
-                </div>
+            {/* Bottom-right Status Badge (status on/off) */}
+            <div className="flex justify-end mt-4">
+              <div className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-extrabold shadow-md transition-all ${
+                connected ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
+              }`}>
+                <span className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
+                <span>status: {connected ? 'ON' : 'OFF'}</span>
               </div>
             </div>
+          </div>
+
+          {/* Card 2: Jumlah & nama perangkat yang aktif */}
+          <div className="rounded-[2.5rem] bg-white p-6 shadow-sm border border-slate-100/80 lg:col-span-3 flex flex-col justify-between min-h-[190px]">
+            <div>
+              <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
+                jumlah &amp; nama perangkat yang aktif
+              </p>
+              <div className="mt-2 flex items-baseline gap-2">
+                <span className="text-3xl font-black text-slate-800">
+                  {devices.filter(d => d.status === 'connected' || d.readings.length > 0).length}
+                </span>
+                <span className="text-xs font-bold text-slate-500">
+                  dari {devices.length} Perangkat Aktif
+                </span>
+              </div>
+            </div>
+
+            {/* List / Badges of Active Devices */}
+            <div className="mt-3 space-y-1.5 max-h-24 overflow-y-auto pr-1">
+              {devices.length > 0 ? (
+                devices.map((d) => (
+                  <div key={d.device_id} className="flex items-center justify-between text-xs py-1.5 px-3 rounded-xl bg-slate-50 border border-slate-100 font-bold text-slate-700">
+                    <span className="truncate max-w-[140px]">{d.device_name}</span>
+                    <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${d.status === 'connected' || d.readings.length > 0 ? 'bg-emerald-500 shadow-sm' : 'bg-slate-300'}`} />
+                  </div>
+                ))
+              ) : (
+                <div className="text-xs text-slate-400 font-medium py-2">
+                  Belum ada perangkat terdaftar
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Card 3: Jam Analog & Jam Digital */}
+          <div className="rounded-[2.5rem] bg-white p-5 shadow-sm border border-slate-100/80 lg:col-span-3 flex flex-col items-center justify-between min-h-[190px]">
+            {/* Jam Analog (Top Circle) */}
+            <div className="flex flex-col items-center pt-1">
+              <AnalogClock time={currentTime} />
+              <span className="mt-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">jam analog</span>
+            </div>
+
+            {/* Jam Digital (Bottom Pill/Box) */}
+            <div className="w-full mt-2 rounded-2xl bg-slate-900 px-3 py-2 text-center text-white shadow-sm">
+              <p className="font-mono text-sm font-black text-sky-400 tracking-wider">
+                {formattedTime}
+              </p>
+              <p className="text-[10px] font-semibold text-slate-400">
+                {formattedDate}
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* ── Main Content Grid ───────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+          {/* ══ MAIN AREA (3 cols) ══════════════════════════════════════ */}
+          <div className="flex flex-col gap-6 lg:col-span-3">
 
             {/* ── Bento Row 1: Temp + Humidity gauges ─────────────────── */}
             <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">

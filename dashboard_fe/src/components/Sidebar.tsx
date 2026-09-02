@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
@@ -11,6 +12,7 @@ interface NavigationItem {
 
 export default function Sidebar() {
   const pathname = usePathname();
+  const [isOpen, setIsOpen] = useState(false);
 
   const navigation: NavigationItem[] = [
     {
@@ -74,76 +76,101 @@ export default function Sidebar() {
 
   return (
     <>
-      {/* Desktop Sidebar */}
-      <aside className="fixed bottom-0 left-0 top-0 z-50 hidden w-20 flex-col items-center justify-between bg-bg-sidebar py-6 md:flex">
-        {/* Logo */}
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-900 text-white">
-          <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10" />
-            <path d="M9 8h4.5a2.5 2.5 0 0 1 0 5H9m0 0h5.5a2.5 2.5 0 0 1 0 5H9V8z" />
+      {/* Trigger Edge Handle (>) - Floating on the left edge */}
+      <div
+        className="fixed top-0 left-0 bottom-0 z-50 w-6 group flex items-center justify-start cursor-pointer"
+        onMouseEnter={() => setIsOpen(true)}
+      >
+        <button
+          onClick={() => setIsOpen(!isOpen)}
+          className={`flex h-12 w-8 items-center justify-center rounded-r-2xl bg-slate-900 text-sky-400 shadow-xl border-y border-r border-slate-700/50 transition-all duration-300 ${
+            isOpen ? 'opacity-0 pointer-events-none' : 'opacity-90 hover:opacity-100 hover:w-10'
+          }`}
+          title="Buka Menu Sidebar"
+        >
+          <svg className="h-5 w-5 stroke-[2.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+            <polyline points="9 18 15 12 9 6" />
           </svg>
-        </div>
+        </button>
+      </div>
 
-        {/* Navigation */}
-        <nav className="flex flex-col gap-4">
-          {navigation.map((item) => {
-            const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
-            return (
-              <Link
-                key={item.name}
-                href={item.href}
-                title={item.name}
-                className={`flex h-12 w-12 items-center justify-center rounded-2xl transition-all duration-300 active:scale-95 ${
-                  isActive
-                    ? 'bg-slate-800 text-white shadow-md'
-                    : 'text-slate-400 hover:bg-slate-900/50 hover:text-white'
-                }`}
-              >
-                {item.icon}
-              </Link>
-            );
-          })}
-        </nav>
+      {/* Hoverable / Sliding Sidebar Container */}
+      <div
+        className={`fixed top-0 left-0 bottom-0 z-50 flex items-stretch transition-transform duration-300 ease-out ${
+          isOpen ? 'translate-x-0' : '-translate-x-full'
+        }`}
+        onMouseEnter={() => setIsOpen(true)}
+        onMouseLeave={() => setIsOpen(false)}
+      >
+        <aside className="w-64 flex flex-col justify-between bg-slate-950/95 backdrop-blur-md text-white py-6 px-4 shadow-2xl border-r border-slate-800/80">
+          {/* Logo / Header */}
+          <div className="flex items-center justify-between pb-6 border-b border-slate-800/80 px-2">
+            <div className="flex items-center gap-3">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500 text-slate-950 font-black">
+                <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                  <circle cx="12" cy="12" r="10" />
+                  <path d="M9 8h4.5a2.5 2.5 0 0 1 0 5H9m0 0h5.5a2.5 2.5 0 0 1 0 5H9V8z" />
+                </svg>
+              </div>
+              <div>
+                <h2 className="font-extrabold text-base tracking-tight text-white">SensorHub</h2>
+                <p className="text-[10px] text-sky-400 font-medium uppercase tracking-wider">IoT Dashboard</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsOpen(false)}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+              title="Tutup Menu"
+            >
+              <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <polyline points="15 18 9 12 15 6" />
+              </svg>
+            </button>
+          </div>
 
-        {/* Bottom Actions */}
-        <div className="flex flex-col gap-4">
-          {/* Settings */}
-          <button
-            title="Settings"
-            className="flex h-12 w-12 items-center justify-center rounded-2xl text-slate-400 transition-all duration-300 hover:bg-slate-900/50 hover:text-white active:scale-95"
-          >
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
-          {/* Logout */}
-          <button
-            title="Logout"
-            className="flex h-12 w-12 items-center justify-center rounded-2xl text-slate-400 transition-all duration-300 hover:bg-slate-900/50 hover:text-white active:scale-95"
-          >
-            <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18.36 6.64a9 9 0 1 1-12.73 0" />
-              <line x1="12" x2="12" y1="2" y2="12" />
-            </svg>
-          </button>
-        </div>
-      </aside>
+          {/* Navigation Links */}
+          <nav className="flex flex-col gap-2 my-6">
+            {navigation.map((item) => {
+              const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
+              return (
+                <Link
+                  key={item.name}
+                  href={item.href}
+                  className={`flex items-center gap-3.5 px-4 py-3 rounded-xl font-semibold text-sm transition-all duration-200 ${
+                    isActive
+                      ? 'bg-sky-500/15 text-sky-400 border border-sky-500/30 shadow-inner'
+                      : 'text-slate-400 hover:bg-slate-900 hover:text-slate-100'
+                  }`}
+                >
+                  <span className={`${isActive ? 'text-sky-400' : 'text-slate-400'}`}>{item.icon}</span>
+                  <span>{item.name}</span>
+                </Link>
+              );
+            })}
+          </nav>
 
-      {/* Mobile Bottom Navigation Bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-slate-800 bg-bg-sidebar px-4 md:hidden">
+          {/* Footer Info */}
+          <div className="pt-4 border-t border-slate-800/80 px-2 text-xs text-slate-500 flex items-center justify-between">
+            <span>Sidebar (Hover Edge)</span>
+            <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+          </div>
+        </aside>
+      </div>
+
+      {/* Mobile Navigation Bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-50 flex h-16 items-center justify-around border-t border-slate-800 bg-slate-950 px-4 md:hidden">
         {navigation.map((item) => {
           const isActive = pathname === item.href || (item.href !== '/' && pathname.startsWith(item.href));
           return (
             <Link
               key={item.name}
               href={item.href}
-              className={`flex flex-col items-center justify-center gap-1 transition-all duration-300 active:scale-95 ${
-                isActive ? 'text-white' : 'text-slate-400 hover:text-white'
+              className={`flex flex-col items-center justify-center gap-1 transition-all duration-300 ${
+                isActive ? 'text-sky-400 font-bold' : 'text-slate-400 hover:text-white'
               }`}
             >
               {item.icon}
-              <span className="text-[10px] font-medium">{item.name}</span>
+              <span className="text-[10px]">{item.name}</span>
             </Link>
           );
         })}
