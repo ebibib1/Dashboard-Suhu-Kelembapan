@@ -36,7 +36,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-BACKEND_URL = f"http://{settings.BACKEND_HOST}:{settings.BACKEND_PORT}"
+BACKEND_URL = settings.COLLECTOR_BACKEND_URL.rstrip("/")
 COLLECTOR_ENDPOINT = f"{BACKEND_URL}/api/collector/data"
 
 

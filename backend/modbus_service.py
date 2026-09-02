@@ -1,5 +1,5 @@
 from typing import List, Optional, Tuple
-from pymodbus.client import ModbusTcpClient
+from pymodbus.client import ModbusTcpClient, ModbusSerialClient
 from pymodbus import FramerType
 from pymodbus.exceptions import ModbusException
 import struct
@@ -14,7 +14,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def create_modbus_client(connection: Connection) -> ModbusTcpClient:
+def create_modbus_client(connection: Connection):
     """Create Modbus client based on connection configuration."""
     if connection.protocol == ConnectionProtocol.TCP:
         return ModbusTcpClient(
@@ -22,12 +22,21 @@ def create_modbus_client(connection: Connection) -> ModbusTcpClient:
             port=connection.port,
             timeout=connection.timeout_ms / 1000.0,
         )
-    elif connection.protocol in (ConnectionProtocol.RTU, ConnectionProtocol.RTU_OVER_TCP):
+    elif connection.protocol == ConnectionProtocol.RTU_OVER_TCP:
         return ModbusTcpClient(
             host=connection.host,
             port=connection.port,
             timeout=connection.timeout_ms / 1000.0,
             framer=FramerType.RTU,
+        )
+    elif connection.protocol == ConnectionProtocol.RTU:
+        return ModbusSerialClient(
+            port=connection.serial_port or "COM3",
+            baudrate=connection.baud_rate or 9600,
+            bytesize=connection.data_bits or 8,
+            parity=connection.parity or 'N',
+            stopbits=connection.stop_bits or 1,
+            timeout=connection.timeout_ms / 1000.0,
         )
     else:
         raise ValueError(f"Unsupported protocol: {connection.protocol}")
@@ -195,7 +204,7 @@ def test_connection(connection: Connection) -> Tuple[bool, str, Optional[dict]]:
             return False, f"Failed to connect to {connection.host}:{connection.port}", None
         
         # Try reading 1 register at address 0
-        result = client.read_input_registers(address=0, count=1, device_id=1)
+        result = client.read_input_registers(address=0, count=1, device_id=connection.slave_id)
         
         if result.isError():
             return False, f"Modbus error: {result}", None

@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     # Backend API
     BACKEND_HOST: str = "0.0.0.0"
     BACKEND_PORT: int = 8000
+    COLLECTOR_BACKEND_URL: str = 'http://127.0.0.1:8000'
     
     # Python Collector
     COLLECTOR_POLL_INTERVAL: int = 1  # seconds for realtime
