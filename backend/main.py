@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from config import get_settings
 from database import init_db
 from scheduler_service import start_scheduler, stop_scheduler, update_scheduler_intervals
+from collector import setup_default_config
 from api import connections, devices, data_points, readings, scheduler, collector, websocket
 
 settings = get_settings()
@@ -20,6 +21,7 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     logger.info("Starting up...")
     init_db()
+    setup_default_config()  # Create default connection/device/datapoints if DB is empty
     start_scheduler()
     yield
     logger.info("Shutting down...")
