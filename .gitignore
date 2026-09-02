@@ -1,0 +1,51 @@
+# Database files
+*.db
+*.sqlite
+*.sqlite3
+sensor_monitor.db
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+*.egg
+.env
+.venv
+venv/
+env/
+
+# Node.js / Next.js
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# IoT scratch files
+IoT/
+
+# Environment files
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
