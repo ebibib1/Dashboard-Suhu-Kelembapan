@@ -4,8 +4,8 @@ import { useState, useEffect } from 'react';
 import Sidebar from '@/components/Sidebar';
 
 interface SchedulerConfig {
-  polling_interval_seconds: number;
-  logging_interval_seconds: number;
+  poll_interval_seconds: number;
+  log_interval_seconds: number;
   is_running: boolean;
 }
 
@@ -20,8 +20,8 @@ export default function SchedulerPage() {
       const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000'}/api/scheduler`);
       if (res.ok) {
         const data: SchedulerConfig = await res.json();
-        setPolling(data.polling_interval_seconds);
-        setLogging(data.logging_interval_seconds);
+        setPolling(data.poll_interval_seconds);
+        setLogging(data.log_interval_seconds);
         setIsRunning(data.is_running);
       }
     } catch (err) {
@@ -45,8 +45,8 @@ export default function SchedulerPage() {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          polling_interval_seconds: Number(polling),
-          logging_interval_seconds: Number(logging),
+          poll_interval_seconds: Number(polling),
+          log_interval_seconds: Number(logging),
           is_running: isRunning
         })
       });
@@ -62,20 +62,24 @@ export default function SchedulerPage() {
   return (
     <div className="min-h-screen bg-bg-app">
       <Sidebar />
-      <main className="ml-64 pt-8 px-8 pb-16">
+      <main className="ml-0 min-h-screen px-4 pb-20 pt-6 md:ml-20 md:px-8 md:py-8 lg:px-10">
+        
+        {/* Header */}
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-text-primary">Scheduler & Polling</h1>
-          <p className="text-text-secondary mt-1">Atur frekuensi pembacaan realtime dan interval pencatatan database</p>
+          <h1 className="text-3xl font-extrabold tracking-tight text-slate-800">Scheduler & Polling</h1>
+          <p className="text-slate-500 mt-1">Configure live sensor polling frequencies and database logging intervals</p>
         </div>
 
-        <div className="bg-bg-card border border-border-subtle rounded-2xl p-6 max-w-2xl">
+        {/* Scheduler Config Card */}
+        <div className="bg-white rounded-[2.5rem] p-6 md:p-8 shadow-sm border border-slate-100/50 max-w-2xl">
           {loading ? (
-            <p className="text-text-secondary">Loading scheduler configuration...</p>
+            <p className="text-slate-400 font-medium">Loading scheduler configuration...</p>
           ) : (
             <form onSubmit={handleSave} className="space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-text-primary mb-1">
-                  Realtime Polling Interval (detik)
+              
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Realtime Polling Interval (seconds)
                 </label>
                 <input
                   type="number"
@@ -83,16 +87,16 @@ export default function SchedulerPage() {
                   required
                   value={polling}
                   onChange={(e) => setPolling(Number(e.target.value))}
-                  className="w-full bg-bg-app border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:border-accent-teal"
+                  className="w-full bg-slate-50 border border-slate-200/50 rounded-2xl px-4 py-3 text-slate-700 focus:outline-none focus:border-sky-500 font-medium transition-colors"
                 />
-                <p className="text-xs text-text-secondary mt-1">
-                  Interval pengiriman data realtime via WebSocket ke UI Dashboard (default: 1s).
+                <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                  The speed at which the server reads data from Modbus sensors and pushes it via WebSocket (default: 1s).
                 </p>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-text-primary mb-1">
-                  Database Historical Logging Interval (detik)
+              <div className="flex flex-col">
+                <label className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">
+                  Database Historical Logging Interval (seconds)
                 </label>
                 <input
                   type="number"
@@ -100,32 +104,43 @@ export default function SchedulerPage() {
                   required
                   value={logging}
                   onChange={(e) => setLogging(Number(e.target.value))}
-                  className="w-full bg-bg-app border border-border-subtle rounded-lg px-3 py-2 text-text-primary focus:outline-none focus:border-accent-teal"
+                  className="w-full bg-slate-50 border border-slate-200/50 rounded-2xl px-4 py-3 text-slate-700 focus:outline-none focus:border-sky-500 font-medium transition-colors"
                 />
-                <p className="text-xs text-text-secondary mt-1">
-                  Interval penyimpanan snapshot data sensor ke dalam database historis (default: 60s).
+                <p className="text-[11px] text-slate-400 mt-1.5 leading-relaxed">
+                  The interval at which sensor snapshots are saved permanently in the historical database (default: 60s).
                 </p>
               </div>
 
-              <div className="flex items-center gap-3 pt-2">
-                <input
-                  type="checkbox"
-                  id="status"
-                  checked={isRunning}
-                  onChange={(e) => setIsRunning(e.target.checked)}
-                  className="w-4 h-4 accent-accent-teal rounded"
-                />
-                <label htmlFor="status" className="text-sm font-medium text-text-primary cursor-pointer">
-                  Aktifkan Polling Background Job
-                </label>
+              {/* Toggle switch for background polling job */}
+              <div className="flex items-center justify-between border-t border-slate-100 pt-6">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-800">Background Polling Job</h4>
+                  <p className="text-[11px] text-slate-400 mt-0.5">Activate or temporarily pause sensor scans</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsRunning(!isRunning)}
+                  className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out ${
+                    isRunning ? 'bg-sky-500' : 'bg-slate-200'
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      isRunning ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  />
+                </button>
               </div>
 
-              <button
-                type="submit"
-                className="bg-accent-teal text-bg-app font-semibold px-6 py-2 rounded-lg hover:opacity-90 transition-opacity"
-              >
-                Simpan Konfigurasi Scheduler
-              </button>
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="submit"
+                  className="bg-slate-900 text-white font-semibold px-8 py-3.5 rounded-2xl hover:bg-slate-800 active:scale-95 shadow-md transition-all"
+                >
+                  Save Scheduler Config
+                </button>
+              </div>
+
             </form>
           )}
         </div>

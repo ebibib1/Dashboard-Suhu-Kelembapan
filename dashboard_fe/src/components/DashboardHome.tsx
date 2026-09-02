@@ -1,7 +1,6 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import MetricCard from './MetricCard';
 
 interface Reading {
   data_point_id: number;
@@ -20,195 +19,476 @@ interface DeviceData {
   error?: string;
 }
 
-type HistoryMap = Record<number, number[]>;
+// ─── helpers ────────────────────────────────────────────────────────────────
+const isTemp = (name: string) => /temp|suhu|temperature/i.test(name);
+const isHumid = (name: string) => /hum|kelembap|kelembaban|rh/i.test(name);
 
-function TrendChart({ values, color = 'var(--accent-teal)' }: { values: number[]; color?: string }) {
-  if (values.length < 2) {
-    return <div className="flex h-full items-center justify-center text-sm text-text-secondary">Menunggu histori pembacaan...</div>;
-  }
+function tempColor(val: number) {
+  if (val >= 35) return 'text-red-500';
+  if (val >= 30) return 'text-orange-400';
+  if (val >= 20) return 'text-emerald-500';
+  return 'text-sky-500';
+}
 
-  const min = Math.min(...values);
-  const max = Math.max(...values);
-  const range = max - min || 1;
-  const points = values.map((value, index) => {
-    const x = (index / (values.length - 1)) * 100;
-    const y = 92 - ((value - min) / range) * 72;
-    return `${x},${y}`;
-  }).join(' ');
+function humidLabel(val: number) {
+  if (val < 30) return { label: 'Sangat Kering', color: 'text-red-400' };
+  if (val < 40) return { label: 'Kering', color: 'text-orange-400' };
+  if (val <= 60) return { label: 'Optimal', color: 'text-emerald-500' };
+  if (val <= 70) return { label: 'Lembap', color: 'text-sky-500' };
+  return { label: 'Sangat Lembap', color: 'text-blue-600' };
+}
 
-  return (
-    <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full" role="img" aria-label="Grafik tren sensor">
-      <defs>
-        <linearGradient id="chart-fill" x1="0" x2="0" y1="0" y2="1">
-          <stop offset="0%" stopColor={color} stopOpacity="0.28" />
-          <stop offset="100%" stopColor={color} stopOpacity="0" />
-        </linearGradient>
-      </defs>
-      <path d={`M ${points} L 100,100 L 0,100 Z`} fill="url(#chart-fill)" />
-      <polyline points={points} fill="none" stroke={color} strokeWidth="1.8" vectorEffect="non-scaling-stroke" />
-    </svg>
-  );
+// Simple arc / gauge path
+function arcPath(pct: number, r = 52) {
+  const angle = pct * 180 - 90; // -90..90
+  const rad = (angle * Math.PI) / 180;
+  const x = 60 + r * Math.cos(rad);
+  const y = 60 + r * Math.sin(rad);
+  return `M ${60 - r} 60 A ${r} ${r} 0 ${pct > 0.5 ? 1 : 0} 1 ${x.toFixed(2)} ${y.toFixed(2)}`;
 }
 
 export default function DashboardHome() {
   const [devices, setDevices] = useState<DeviceData[]>([]);
-  const [history, setHistory] = useState<HistoryMap>({});
   const [connected, setConnected] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
+  const [selectedDeviceIndex, setSelectedDeviceIndex] = useState(0);
+  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [loadError, setLoadError] = useState<string | null>(null);
 
+  // ── Clock ────────────────────────────────────────────────────────────────
   useEffect(() => {
-    let websocket: WebSocket | null = null;
+    const t = setInterval(() => setCurrentTime(new Date()), 1000);
+    return () => clearInterval(t);
+  }, []);
+
+  // ── Data fetch + WebSocket ───────────────────────────────────────────────
+  useEffect(() => {
+    let ws: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
 
     const loadInitialData = async () => {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+      const api = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
       try {
-        const currentResponse = await fetch(`${apiUrl}/api/readings/current`);
-        const readings: Reading[] = currentResponse.ok ? await currentResponse.json() : [];
-        if (readings.length === 0) return;
+        setLoadError(null);
+        const devRes = await fetch(`${api}/api/devices`);
+        const backendDevices: { id: number; name: string }[] = devRes.ok
+          ? await devRes.json()
+          : [];
 
-        const device: DeviceData = {
-          device_id: 1,
-          device_name: 'XY-MD02 Sensor',
-          timestamp: readings[0].timestamp,
-          readings,
-          status: 'connected',
-        };
-        setDevices([device]);
-        setLastUpdate(new Date(readings[0].timestamp));
-
-        const historyResponse = await fetch(`${apiUrl}/api/readings/device/1/history?limit=60`);
-        if (historyResponse.ok) {
-          const rows: Array<{ data_point_id: number; value: number }> = await historyResponse.json();
-          const grouped = rows.reverse().reduce<HistoryMap>((result, row) => {
-            result[row.data_point_id] = [...(result[row.data_point_id] || []), row.value];
-            return result;
-          }, {});
-          setHistory(grouped);
+        const list: DeviceData[] = [];
+        for (const dev of backendDevices) {
+          const rRes = await fetch(
+            `${api}/api/readings/device/${dev.id}/current`
+          );
+          const readings: Reading[] = rRes.ok ? await rRes.json() : [];
+          list.push({
+            device_id: dev.id,
+            device_name: dev.name,
+            timestamp:
+              readings.length > 0
+                ? readings[0].timestamp
+                : new Date().toISOString(),
+            readings,
+            status: readings.length > 0 ? 'connected' : 'offline',
+          });
         }
-      } catch (error) {
-        console.error('Failed to fetch initial sensor data:', error);
+        setDevices(list);
+      } catch {
+        setLoadError(
+          'Backend tidak dapat diakses. Pastikan server berjalan dan sensor sudah terhubung.'
+        );
+        setDevices([]);
       }
     };
 
     const connectWS = () => {
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
-      websocket = new WebSocket(`${wsUrl}/ws/realtime`);
-      websocket.onopen = () => setConnected(true);
-      websocket.onmessage = (event) => {
+      const wsBase =
+        process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+      ws = new WebSocket(`${wsBase}/ws/realtime`);
+      ws.onopen = () => setConnected(true);
+      ws.onmessage = (ev) => {
         try {
-          const message = JSON.parse(event.data);
-          if (message.type !== 'sensor_data') return;
-          const nextDevice: DeviceData = {
-            device_id: message.device_id,
-            device_name: message.device_name,
-            timestamp: message.timestamp,
-            readings: message.readings,
-            status: message.status,
-            error: message.error,
+          const msg = JSON.parse(ev.data as string);
+          if (msg.type !== 'sensor_data') return;
+          const next: DeviceData = {
+            device_id: msg.device_id,
+            device_name: msg.device_name,
+            timestamp: msg.timestamp,
+            readings: msg.readings,
+            status: msg.status,
+            error: msg.error,
           };
-          setDevices((previous) => previous.some((item) => item.device_id === nextDevice.device_id)
-            ? previous.map((item) => item.device_id === nextDevice.device_id ? nextDevice : item)
-            : [...previous, nextDevice]);
-          setHistory((previous) => {
-            const next = { ...previous };
-            nextDevice.readings.forEach((reading) => {
-              next[reading.data_point_id] = [...(next[reading.data_point_id] || []), reading.value].slice(-60);
-            });
-            return next;
-          });
-          setLastUpdate(new Date(message.timestamp));
-        } catch (error) {
-          console.error('WS message parse error:', error);
+          setDevices((prev) =>
+            prev.some((d) => d.device_id === next.device_id)
+              ? prev.map((d) => (d.device_id === next.device_id ? next : d))
+              : [...prev, next]
+          );
+        } catch {
+          // ignore parse errors
         }
       };
-      websocket.onclose = () => {
+      ws.onclose = () => {
         setConnected(false);
         reconnectTimer = setTimeout(connectWS, 3000);
       };
-      websocket.onerror = () => setConnected(false);
+      ws.onerror = () => setConnected(false);
     };
 
-    const timer = setTimeout(() => {
+    const t = setTimeout(() => {
       void loadInitialData();
       connectWS();
     }, 0);
+
     return () => {
-      clearTimeout(timer);
+      clearTimeout(t);
       if (reconnectTimer) clearTimeout(reconnectTimer);
-      websocket?.close();
+      ws?.close();
     };
   }, []);
 
-  const primaryDevice = devices[0];
-  const temperature = primaryDevice?.readings.find((reading) => /temperature|suhu/i.test(reading.name));
-  const humidity = primaryDevice?.readings.find((reading) => /humidity|kelembaban/i.test(reading.name));
-  const temperatureHistory = temperature ? history[temperature.data_point_id] || [temperature.value] : [];
-  const humidityPercent = humidity ? Math.max(0, Math.min(100, humidity.value)) : 0;
+  // ── Derived values ───────────────────────────────────────────────────────
+  const primaryDevice =
+    devices[selectedDeviceIndex] ?? devices[0] ?? null;
+
+  const temperature = primaryDevice?.readings.find((r) => isTemp(r.name));
+  const humidity = primaryDevice?.readings.find((r) => isHumid(r.name));
+
+  const tempVal = temperature?.value ?? null;
+  const humidVal = humidity?.value ?? null;
+  const humidPct = humidVal !== null ? Math.max(0, Math.min(100, Math.round(humidVal))) : 0;
+
+  // Temperature gauge: 0–50 °C maps to 0–100 %
+  const tempPct = tempVal !== null ? Math.max(0, Math.min(1, tempVal / 50)) : 0;
+  const humidGaugePct = humidPct / 100;
+
+  const humStatus = humidVal !== null ? humidLabel(humidVal) : null;
+
+  const formattedTime = currentTime.toLocaleTimeString('id-ID', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+  const formattedDate = currentTime.toLocaleDateString('id-ID', {
+    weekday: 'long',
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric',
+  });
+
+  const lastUpdated = primaryDevice?.timestamp
+    ? new Date(primaryDevice.timestamp).toLocaleTimeString('id-ID', {
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+      })
+    : '--:--:--';
+
+  // ── Status message ───────────────────────────────────────────────────────
+  let statusMsg = 'Menunggu data sensor...';
+  if (!connected) {
+    statusMsg = 'Sensor terputus. Periksa koneksi perangkat.';
+  } else if (tempVal !== null && tempVal > 35) {
+    statusMsg = 'Suhu sangat tinggi! Pastikan ventilasi berjalan.';
+  } else if (humidVal !== null && humidVal < 30) {
+    statusMsg = 'Kelembapan sangat rendah. Pertimbangkan humidifier.';
+  } else if (humidVal !== null && humidVal > 70) {
+    statusMsg = 'Kelembapan tinggi. Pastikan sirkulasi udara baik.';
+  } else if (connected && tempVal !== null) {
+    statusMsg = 'Kondisi lingkungan normal dan stabil.';
+  }
 
   return (
     <div className="min-h-screen bg-bg-app">
-      <main className="ml-0 min-h-screen px-4 pb-16 pt-24 sm:px-6 md:ml-64 md:px-8 md:pt-8">
-        <header className="mb-6 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-[0.2em] text-accent-teal">SensorHub / Overview</p>
-            <h1 className="text-3xl font-bold text-text-primary">Dashboard</h1>
-            <p className="mt-1 text-text-secondary">Real-time sensor monitoring</p>
-          </div>
-          <div className={`flex w-fit items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium ${connected ? 'border-accent-green/30 bg-accent-green/15 text-accent-green' : 'border-accent-red/30 bg-accent-red/15 text-accent-red'}`}>
-            <span className={`h-2 w-2 rounded-full ${connected ? 'bg-accent-green' : 'bg-accent-red'}`} />
-            {connected ? 'Realtime Connected' : 'Realtime Disconnected'}
-          </div>
-        </header>
+      <main className="ml-0 min-h-screen px-4 pb-20 pt-6 md:ml-20 md:px-8 md:py-8 lg:px-10">
 
-        {primaryDevice ? (
-          <>
-            <div className="grid grid-cols-1 gap-4 xl:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
-              <section className="rounded-2xl border border-border-subtle bg-bg-card p-5 sm:p-6">
-                <div className="mb-5 flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Temperature trend</p>
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <span className="text-4xl font-extrabold text-text-primary">{temperature?.value.toFixed(1) ?? '--'}</span>
-                      <span className="text-lg text-text-secondary">{temperature?.unit || '°C'}</span>
-                    </div>
-                  </div>
-                  <span className="rounded-full bg-accent-teal/15 px-2.5 py-1 text-xs font-medium text-accent-teal">Live</span>
-                </div>
-                <div className="h-48 sm:h-64"><TrendChart values={temperatureHistory} /></div>
-                <div className="mt-4 flex justify-between text-xs text-text-secondary">
-                  <span>60 pembacaan terakhir</span>
-                  <span>{lastUpdate ? `Update ${lastUpdate.toLocaleTimeString()}` : 'Belum ada update'}</span>
-                </div>
-              </section>
+        {/* ── Error Banner ─────────────────────────────────────────────── */}
+        {loadError && (
+          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+            <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <span className="font-medium">{loadError}</span>
+          </div>
+        )}
 
-              <section className="rounded-2xl border border-border-subtle bg-bg-card p-5 sm:p-6">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-wider text-text-secondary">Humidity</p>
-                    <div className="mt-2 flex items-baseline gap-2">
-                      <span className="text-4xl font-extrabold text-text-primary">{humidity?.value.toFixed(1) ?? '--'}</span>
-                      <span className="text-lg text-text-secondary">{humidity?.unit || '%RH'}</span>
-                    </div>
-                  </div>
-                  <span className="text-2xl text-accent-pink">◌</span>
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
+
+          {/* ══ MAIN AREA (3 cols) ══════════════════════════════════════ */}
+          <div className="flex flex-col gap-6 lg:col-span-3">
+
+            {/* ── Header Banner ──────────────────────────────────────── */}
+            <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-sky-500 via-blue-500 to-indigo-600 p-8 text-white shadow-lg md:p-10">
+              {/* decorative circles */}
+              <span className="absolute -right-10 -top-10 h-52 w-52 rounded-full bg-white/10" />
+              <span className="absolute -bottom-12 right-24 h-40 w-40 rounded-full bg-white/5" />
+
+              <div className="relative z-10">
+                <p className="text-sm font-semibold uppercase tracking-widest text-sky-100">
+                  Dashboard Sensor
+                </p>
+                <h1 className="mt-1 text-3xl font-extrabold tracking-tight md:text-4xl">
+                  Monitor Suhu &amp; Kelembapan
+                </h1>
+                <p className="mt-2 max-w-sm text-sm text-sky-200">
+                  Pemantauan real-time kondisi lingkungan melalui sensor Modbus.
+                </p>
+                <div className="mt-4 flex items-center gap-2 text-xs font-semibold">
+                  <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 ${connected ? 'bg-emerald-400/20 text-emerald-200' : 'bg-red-400/20 text-red-200'}`}>
+                    <span className={`h-2 w-2 rounded-full ${connected ? 'animate-pulse bg-emerald-400' : 'bg-red-400'}`} />
+                    {connected ? 'Live Sync' : 'Offline'}
+                  </span>
+                  <span className="rounded-full bg-white/10 px-3 py-1 font-mono text-sky-100">
+                    {formattedTime}
+                  </span>
                 </div>
-                <div className="mx-auto my-8 flex h-40 w-40 items-center justify-center rounded-full" style={{ background: `conic-gradient(var(--accent-pink) ${humidityPercent}%, var(--border-subtle) 0)` }}>
-                  <div className="flex h-28 w-28 items-center justify-center rounded-full bg-bg-card text-center"><span className="text-2xl font-bold text-text-primary">{humidityPercent.toFixed(0)}<small className="text-sm text-text-secondary">%</small></span></div>
-                </div>
-                <div className="flex items-center justify-between border-t border-border-subtle pt-3 text-xs text-text-secondary"><span>{primaryDevice.device_name}</span><span className="text-accent-green">● {primaryDevice.status}</span></div>
-              </section>
+              </div>
             </div>
 
-            <section className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {primaryDevice.readings.map((reading, index) => (
-                <MetricCard key={reading.data_point_id} label={reading.name} value={reading.value.toFixed(1)} unit={reading.unit} status={primaryDevice.status === 'connected' || primaryDevice.status === 'OK' ? 'connected' : 'disconnected'} sparkline={history[reading.data_point_id] || [reading.value]} accent={index % 2 === 0 ? 'teal' : 'pink'} />
-              ))}
-            </section>
-          </>
-        ) : (
-          <div className="rounded-2xl border border-border-subtle bg-bg-card p-12 text-center"><div className="mb-4 text-4xl">📡</div><h3 className="mb-2 text-xl font-semibold text-text-primary">No Sensor Data</h3><p className="mb-6 text-text-secondary">Configure connections and sensors to start monitoring</p><a href="/connections" className="inline-flex rounded-lg bg-accent-teal px-4 py-2 font-medium text-bg-app transition-opacity hover:opacity-90">Setup Connections</a></div>
-        )}
+            {/* ── Bento Row 1: Temp + Humidity gauges ─────────────────── */}
+            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+
+              {/* Temperature Card */}
+              <div className="rounded-[2.5rem] bg-white p-7 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Suhu Udara</p>
+                    <h2 className={`mt-1 text-5xl font-extrabold tabular-nums ${tempVal !== null ? tempColor(tempVal) : 'text-slate-300'}`}>
+                      {tempVal !== null ? tempVal.toFixed(1) : '--'}
+                      <span className="ml-1 text-2xl font-semibold text-slate-400">°C</span>
+                    </h2>
+                  </div> 
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-orange-400">
+                    {/* thermometer icon */}
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Semi-circle gauge */}
+                <div className="relative mx-auto mt-6 flex h-[80px] w-[120px] items-end justify-center overflow-hidden">
+                  <svg viewBox="0 0 120 70" className="absolute inset-0 w-full">
+                    {/* Track */}
+                    <path d="M 8 60 A 52 52 0 0 1 112 60" fill="none" stroke="#f1f5f9" strokeWidth="10" strokeLinecap="round" />
+                    {/* Fill */}
+                    <path
+                      d="M 8 60 A 52 52 0 0 1 112 60"
+                      fill="none"
+                      stroke="url(#tempGrad)"
+                      strokeWidth="10"
+                      strokeLinecap="round"
+                      strokeDasharray={`${tempPct * 163} 163`}
+                    />
+                    <defs>
+                      <linearGradient id="tempGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                        <stop offset="0%" stopColor="#38bdf8" />
+                        <stop offset="50%" stopColor="#f97316" />
+                        <stop offset="100%" stopColor="#ef4444" />
+                      </linearGradient>
+                    </defs>
+                  </svg>
+                  <span className="relative z-10 mb-1 text-xs font-bold text-slate-400">0–50 °C</span>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
+                  <span className="font-semibold text-slate-400">Sumber: {temperature?.name ?? '--'}</span>
+                  <span className="font-bold text-sky-500">Real-time</span>
+                </div>
+              </div>
+
+              {/* Humidity Card */}
+              <div className="rounded-[2.5rem] bg-white p-7 shadow-sm">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Kelembapan</p>
+                    <h2 className="mt-1 text-5xl font-extrabold tabular-nums text-sky-500">
+                      {humidVal !== null ? Math.round(humidVal) : '--'}
+                      <span className="ml-1 text-2xl font-semibold text-slate-400">%</span>
+                    </h2>
+                  </div>
+                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-400">
+                    {/* droplet icon */}
+                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M12 2C6.5 9.5 4 13.5 4 16a8 8 0 0 0 16 0c0-2.5-2.5-6.5-8-14z"/>
+                    </svg>
+                  </div>
+                </div>
+
+                {/* Droplet fill bar */}
+                <div className="relative mx-auto mt-6 h-28 w-20">
+                  <div className="droplet-container mx-auto" style={{ width: 80, height: 104 }}>
+                    <div
+                      className="droplet-water"
+                      style={{ transform: `scaleY(${humidGaugePct})` }}
+                    >
+                      <div className="water-wave" />
+                    </div>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-sm font-extrabold text-white drop-shadow">{humidPct}%</span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
+                  <span className={`font-bold ${humStatus?.color ?? 'text-slate-400'}`}>
+                    {humStatus?.label ?? '--'}
+                  </span>
+                  <span className="font-semibold text-slate-400">{humidity?.unit ?? '%RH'}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* ── Bento Row 2: Device list + Reading detail ────────────── */}
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
+
+              {/* Device Selector */}
+              <div className="flex flex-col justify-between rounded-[2.5rem] bg-white p-6 shadow-sm">
+                <div>
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Perangkat Aktif</p>
+                  <h3 className="mt-2 text-lg font-bold text-slate-800">
+                    {primaryDevice?.device_name ?? 'Tidak ada perangkat'}
+                  </h3>
+                  <p className="mt-0.5 text-xs text-slate-400">
+                    {devices.length} perangkat terdaftar
+                  </p>
+                </div>
+
+                {/* Dot indicators */}
+                <div className="my-4 flex justify-center gap-2">
+                  {devices.map((_, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setSelectedDeviceIndex(idx)}
+                      className={`h-2 rounded-full transition-all ${idx === selectedDeviceIndex ? 'w-6 bg-sky-500' : 'w-2 bg-slate-200'}`}
+                    />
+                  ))}
+                  {devices.length === 0 && <span className="h-2 w-2 rounded-full bg-slate-200" />}
+                </div>
+
+                <button
+                  disabled={devices.length <= 1}
+                  onClick={() => setSelectedDeviceIndex((p) => (p + 1) % devices.length)}
+                  className="w-full rounded-2xl bg-slate-900 py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-slate-800 active:scale-95 disabled:opacity-40"
+                >
+                  Perangkat Berikutnya
+                </button>
+              </div>
+
+              {/* Reading Detail Table */}
+              <div className="rounded-[2.5rem] bg-white p-6 shadow-sm md:col-span-2">
+                <div className="mb-4 flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Detail Pembacaan</p>
+                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${primaryDevice?.status === 'connected' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
+                    {primaryDevice?.status ?? 'offline'}
+                  </span>
+                </div>
+
+                {primaryDevice && primaryDevice.readings.length > 0 ? (
+                  <div className="divide-y divide-slate-50">
+                    {primaryDevice.readings.map((r) => (
+                      <div key={r.data_point_id} className="flex items-center justify-between py-3">
+                        <div className="flex items-center gap-3">
+                          <div className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm ${isTemp(r.name) ? 'bg-orange-50 text-orange-400' : isHumid(r.name) ? 'bg-sky-50 text-sky-500' : 'bg-slate-50 text-slate-400'}`}>
+                            {isTemp(r.name) ? '🌡' : isHumid(r.name) ? '💧' : '📡'}
+                          </div>
+                          <span className="text-sm font-semibold text-slate-700">{r.name}</span>
+                        </div>
+                        <span className="font-extrabold tabular-nums text-slate-800">
+                          {r.value.toFixed(1)}
+                          <span className="ml-0.5 text-xs font-medium text-slate-400">{r.unit ?? ''}</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="flex h-28 flex-col items-center justify-center gap-2 text-slate-300">
+                    <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+                    </svg>
+                    <p className="text-sm font-semibold">Belum ada data pembacaan</p>
+                    <p className="text-xs text-slate-400">Pastikan sensor terhubung dan polling aktif</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* ══ RIGHT PANEL (1 col) ══════════════════════════════════════ */}
+          <div className="flex flex-col gap-6 lg:col-span-1">
+
+            {/* Date & Time Card */}
+            <div className="rounded-[2rem] bg-white p-5 shadow-sm">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Waktu Sekarang</p>
+              <p className="mt-1 font-mono text-2xl font-extrabold text-slate-800">{formattedTime}</p>
+              <p className="mt-0.5 text-xs font-semibold text-slate-400">{formattedDate}</p>
+              <div className="mt-3 border-t border-slate-100 pt-3 text-xs text-slate-400">
+                Update terakhir: <span className="font-bold text-slate-600">{lastUpdated}</span>
+              </div>
+            </div>
+
+            {/* Status Message Card */}
+            <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-b from-sky-50 to-blue-100/60 p-6 shadow-sm">
+              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm">
+                <svg className="h-7 w-7 text-sky-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2C6.5 9.5 4 13.5 4 16a8 8 0 0 0 16 0c0-2.5-2.5-6.5-8-14z"/>
+                </svg>
+              </div>
+              <p className="text-xs font-bold uppercase tracking-widest text-sky-700">Status Sensor</p>
+              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">{statusMsg}</p>
+              <div className="mt-4 flex gap-1">
+                <span className="h-1.5 w-4 rounded-full bg-sky-500" />
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-200" />
+                <span className="h-1.5 w-1.5 rounded-full bg-sky-100" />
+              </div>
+            </div>
+
+            {/* Quick Stats */}
+            <div className="rounded-[2rem] bg-white p-5 shadow-sm">
+              <p className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">Ringkasan</p>
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                    <span className="h-2 w-2 rounded-full bg-orange-400" />
+                    Suhu
+                  </span>
+                  <span className={`text-sm font-extrabold tabular-nums ${tempVal !== null ? tempColor(tempVal) : 'text-slate-300'}`}>
+                    {tempVal !== null ? `${tempVal.toFixed(1)} °C` : '-- °C'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                    <span className="h-2 w-2 rounded-full bg-sky-400" />
+                    Kelembapan
+                  </span>
+                  <span className="text-sm font-extrabold tabular-nums text-sky-600">
+                    {humidVal !== null ? `${Math.round(humidVal)} %` : '-- %'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                    <span className={`h-2 w-2 rounded-full ${connected ? 'bg-emerald-400' : 'bg-rose-400'}`} />
+                    Koneksi
+                  </span>
+                  <span className={`text-sm font-bold ${connected ? 'text-emerald-500' : 'text-rose-500'}`}>
+                    {connected ? 'Online' : 'Offline'}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-500">
+                    <span className="h-2 w-2 rounded-full bg-indigo-400" />
+                    Perangkat
+                  </span>
+                  <span className="text-sm font-bold text-slate-700">
+                    {devices.length} aktif
+                  </span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+        </div>
       </main>
     </div>
   );
