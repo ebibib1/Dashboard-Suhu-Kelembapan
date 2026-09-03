@@ -195,7 +195,7 @@ def read_device_data(connection: Connection, device: Device, data_points: List[D
 
 
 def test_connection(connection: Connection) -> Tuple[bool, str, Optional[dict]]:
-    """Test a connection by reading a single register."""
+    """Test a connection using the first enabled data point on an active device."""
     client = None
     try:
         client = create_modbus_client(connection)
@@ -203,13 +203,25 @@ def test_connection(connection: Connection) -> Tuple[bool, str, Optional[dict]]:
         if not client.connect():
             return False, f"Failed to connect to {connection.host}:{connection.port}", None
         
-        # Try reading 1 register at address 0
-        result = client.read_input_registers(address=0, count=1, device_id=connection.slave_id)
+        device = next((item for item in connection.devices if item.is_active), None)
+        data_point = next((item for item in device.data_points if item.enabled), None) if device else None
+        if not device or not data_point:
+            return False, "No active device/data point configured for this connection", None
+
+        slave_id = device.slave_id
+        address = data_point.address
+        count = data_point.register_count
+        if int(data_point.function_code) == 3:
+            result = client.read_holding_registers(address=address, count=count, device_id=slave_id)
+        elif int(data_point.function_code) == 4:
+            result = client.read_input_registers(address=address, count=count, device_id=slave_id)
+        else:
+            return False, f"Unsupported test function code: {data_point.function_code}", None
         
         if result.isError():
             return False, f"Modbus error: {result}", None
         
-        return True, "Connection successful", {"registers": result.registers}
+        return True, "Connection successful", {"registers": result.registers, "address": address, "slave_id": slave_id}
     
     except Exception as e:
         return False, f"{type(e).__name__}: {e}", None
