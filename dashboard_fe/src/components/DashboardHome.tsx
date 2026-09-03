@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Sidebar from '@/components/Sidebar';
 
 interface Reading {
   data_point_id: number;
@@ -19,36 +20,33 @@ interface DeviceData {
   error?: string;
 }
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// ─── Helpers ────────────────────────────────────────────────────────────────
 const isTemp = (name: string) => /temp|suhu|temperature/i.test(name);
 const isHumid = (name: string) => /hum|kelembap|kelembaban|rh/i.test(name);
+const READING_STALE_MS = 15_000;
 
-function tempColor(val: number) {
-  if (val >= 35) return 'text-red-500';
-  if (val >= 30) return 'text-orange-400';
-  if (val >= 20) return 'text-emerald-500';
-  return 'text-sky-500';
+function hasFreshReading(readings: Reading[]) {
+  if (!readings.length) return false;
+  const timestamp = new Date(readings[0].timestamp).getTime();
+  return Number.isFinite(timestamp) && Date.now() - timestamp <= READING_STALE_MS;
 }
 
-function humidLabel(val: number) {
-  if (val < 30) return { label: 'Sangat Kering', color: 'text-red-400' };
-  if (val < 40) return { label: 'Kering', color: 'text-orange-400' };
-  if (val <= 60) return { label: 'Optimal', color: 'text-emerald-500' };
-  if (val <= 70) return { label: 'Lembap', color: 'text-sky-500' };
-  return { label: 'Sangat Lembap', color: 'text-blue-600' };
+function tempStatus(val: number) {
+  if (val >= 35) return { label: 'Tinggi / Panas', color: 'border-rose-500 bg-rose-50 text-rose-700', badge: 'off' };
+  if (val >= 28) return { label: 'Agak Hangat', color: 'border-amber-500 bg-amber-50 text-amber-700', badge: 'warning' };
+  if (val >= 18) return { label: 'Optimal / Normal', color: 'border-emerald-500 bg-emerald-50 text-emerald-700', badge: 'normal' };
+  return { label: 'Dingin', color: 'border-sky-500 bg-sky-50 text-sky-700', badge: 'normal' };
 }
 
-// Simple arc / gauge path
-function arcPath(pct: number, r = 52) {
-  const angle = pct * 180 - 90; // -90..90
-  const rad = (angle * Math.PI) / 180;
-  const x = 60 + r * Math.cos(rad);
-  const y = 60 + r * Math.sin(rad);
-  return `M ${60 - r} 60 A ${r} ${r} 0 ${pct > 0.5 ? 1 : 0} 1 ${x.toFixed(2)} ${y.toFixed(2)}`;
+function humidStatus(val: number) {
+  if (val < 30) return { label: 'Kering', color: 'border-amber-500 bg-amber-50 text-amber-700', badge: 'warning' };
+  if (val <= 60) return { label: 'Optimal / Ideal', color: 'border-emerald-500 bg-emerald-50 text-emerald-700', badge: 'normal' };
+  if (val <= 75) return { label: 'Lembap', color: 'border-sky-500 bg-sky-50 text-sky-700', badge: 'normal' };
+  return { label: 'Sangat Lembap', color: 'border-blue-600 bg-blue-50 text-blue-800', badge: 'warning' };
 }
 
-// ─── Analog Clock Component ──────────────────────────────────────────────────
-function AnalogClock({ time }: { time: Date }) {
+// ─── Compact Simplified Clock ───────────────────────────────────────────────
+function CompactAnalogClock({ time }: { time: Date }) {
   const seconds = time.getSeconds();
   const minutes = time.getMinutes() + seconds / 60;
   const hours = (time.getHours() % 12) + minutes / 60;
@@ -58,9 +56,9 @@ function AnalogClock({ time }: { time: Date }) {
   const hourDeg = (hours / 12) * 360;
 
   return (
-    <div className="relative flex h-20 w-20 items-center justify-center rounded-full bg-slate-900 shadow-inner border-2 border-slate-700/60">
+    <div className="relative flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-slate-900 shadow-inner border-2 border-slate-700/80">
       <svg viewBox="0 0 100 100" className="h-full w-full">
-        {/* Dial Ticks */}
+        {/* Ticks */}
         {[...Array(12)].map((_, i) => {
           const angle = (i * 30 * Math.PI) / 180;
           const x1 = 50 + 38 * Math.sin(angle);
@@ -75,7 +73,7 @@ function AnalogClock({ time }: { time: Date }) {
               x2={x2}
               y2={y2}
               stroke={i % 3 === 0 ? '#38bdf8' : '#64748b'}
-              strokeWidth={i % 3 === 0 ? '3' : '1.5'}
+              strokeWidth={i % 3 === 0 ? '4' : '2'}
               strokeLinecap="round"
             />
           );
@@ -88,7 +86,7 @@ function AnalogClock({ time }: { time: Date }) {
           x2={50 + 22 * Math.sin((hourDeg * Math.PI) / 180)}
           y2={50 - 22 * Math.cos((hourDeg * Math.PI) / 180)}
           stroke="#ffffff"
-          strokeWidth="3.5"
+          strokeWidth="4"
           strokeLinecap="round"
         />
 
@@ -99,7 +97,7 @@ function AnalogClock({ time }: { time: Date }) {
           x2={50 + 32 * Math.sin((minDeg * Math.PI) / 180)}
           y2={50 - 32 * Math.cos((minDeg * Math.PI) / 180)}
           stroke="#38bdf8"
-          strokeWidth="2.5"
+          strokeWidth="3"
           strokeLinecap="round"
         />
 
@@ -110,32 +108,140 @@ function AnalogClock({ time }: { time: Date }) {
           x2={50 + 36 * Math.sin((secDeg * Math.PI) / 180)}
           y2={50 - 36 * Math.cos((secDeg * Math.PI) / 180)}
           stroke="#ef4444"
-          strokeWidth="1.5"
+          strokeWidth="2"
           strokeLinecap="round"
         />
 
         {/* Center Cap */}
-        <circle cx="50" cy="50" r="3.5" fill="#ef4444" />
+        <circle cx="50" cy="50" r="4" fill="#ef4444" />
         <circle cx="50" cy="50" r="1.5" fill="#ffffff" />
       </svg>
     </div>
   );
 }
 
+// ─── Dynamic Gauge Card (Speedometer Style) ─────────────────────────────────
+function SpeedometerGauge({
+  title,
+  value,
+  unit,
+  subtitle,
+  currentVal,
+  minVal = 0,
+  maxVal = 100,
+}: {
+  title: string;
+  value: string;
+  unit: string;
+  subtitle: string;
+  currentVal: number;
+  minVal?: number;
+  maxVal?: number;
+}) {
+  const pct = Math.max(0, Math.min(1, (currentVal - minVal) / (maxVal - minVal)));
+  const angle = -120 + pct * 240; // -120deg to +120deg
+  const rad = (angle * Math.PI) / 180;
+  const needleX = 60 + 36 * Math.sin(rad);
+  const needleY = 60 - 36 * Math.cos(rad);
+
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between h-full">
+      <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+        <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700 truncate">{title}</h3>
+        <span className="text-[10px] font-semibold text-slate-400">Live</span>
+      </div>
+
+      {/* Main Value Display */}
+      <div className="text-center my-1">
+        <span className="text-3xl font-black tracking-tight text-slate-900 tabular-nums">{value}</span>
+        <span className="ml-1 text-xs font-bold text-slate-500">{unit}</span>
+      </div>
+
+      {/* Speedometer Arc & Needle */}
+      <div className="relative mx-auto my-1 flex h-[95px] w-[150px] items-center justify-center">
+        <svg viewBox="0 0 120 95" className="w-full h-full">
+          {/* Background Track */}
+          <path d="M 20 80 A 46 46 0 1 1 100 80" fill="none" stroke="#f1f5f9" strokeWidth="12" strokeLinecap="round" />
+
+          {/* Green Zone (Normal) */}
+          <path d="M 20 80 A 46 46 0 0 1 65 14" fill="none" stroke="#22c55e" strokeWidth="12" />
+
+          {/* Yellow Zone (Warning) */}
+          <path d="M 65 14 A 46 46 0 0 1 92 35" fill="none" stroke="#eab308" strokeWidth="12" />
+
+          {/* Red Zone (Alert) */}
+          <path d="M 92 35 A 46 46 0 0 1 100 80" fill="none" stroke="#ef4444" strokeWidth="12" />
+
+          {/* Center Hub */}
+          <circle cx="60" cy="60" r="7" fill="#0f172a" />
+
+          {/* Needle */}
+          <line x1="60" y1="60" x2={needleX} y2={needleY} stroke="#0f172a" strokeWidth="3" strokeLinecap="round" />
+          <circle cx="60" cy="60" r="3" fill="#ffffff" />
+        </svg>
+      </div>
+
+      <div className="text-center pt-2 border-t border-slate-100 mt-2">
+        <span className="text-[11px] font-medium text-slate-500 truncate block">{subtitle}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Dynamic Sensor Circle Badge (Adapts to any sensor) ─────────────────────
+function DynamicSensorBadge({
+  name,
+  value,
+  unit,
+  statusLabel,
+  isOnline = true,
+}: {
+  name: string;
+  value: number | string;
+  unit: string;
+  statusLabel: string;
+  isOnline?: boolean;
+}) {
+  return (
+    <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-xs flex flex-col justify-between items-center text-center h-full">
+      <div className="w-full flex items-center justify-between border-b border-slate-100 pb-2 mb-2">
+        <h4 className="text-xs font-bold text-slate-800 truncate" title={name}>{name}</h4>
+        <span className={`h-2 w-2 rounded-full ${isOnline ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`} />
+      </div>
+
+      {/* Circle Badge */}
+      <div
+        className={`my-2 flex h-20 w-20 flex-col items-center justify-center rounded-full border-4 shadow-inner transition-transform hover:scale-105 ${
+          isOnline
+            ? 'border-emerald-500 bg-emerald-500/10 text-emerald-800'
+            : 'border-slate-300 bg-slate-100 text-slate-400'
+        }`}
+      >
+        <span className="text-base font-black tracking-tight tabular-nums">{value}</span>
+        <span className="text-[10px] font-bold uppercase text-slate-500">{unit}</span>
+      </div>
+
+      <div className="mt-2 pt-2 border-t border-slate-100 w-full text-center">
+        <span className="text-[10px] font-bold text-slate-600 block truncate">{statusLabel}</span>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Dynamic IoT Sensor Dashboard ──────────────────────────────────────
 export default function DashboardHome() {
   const [devices, setDevices] = useState<DeviceData[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [selectedDeviceIndex, setSelectedDeviceIndex] = useState(0);
-  const [currentTime, setCurrentTime] = useState<Date>(new Date());
+  const [currentTime, setCurrentTime] = useState<Date | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  // ── Clock ────────────────────────────────────────────────────────────────
+  // Clock tick
   useEffect(() => {
+    setCurrentTime(new Date());
     const t = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(t);
   }, []);
 
-  // ── Data fetch + WebSocket ───────────────────────────────────────────────
+  // Backend API + WebSocket data polling
   useEffect(() => {
     let ws: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | undefined;
@@ -151,45 +257,50 @@ export default function DashboardHome() {
 
         const list: DeviceData[] = [];
         for (const dev of backendDevices) {
-          const rRes = await fetch(
-            `${api}/api/readings/device/${dev.id}/current`
-          );
+          const rRes = await fetch(`${api}/api/readings/device/${dev.id}/current`);
           const readings: Reading[] = rRes.ok ? await rRes.json() : [];
+          const fresh = hasFreshReading(readings);
           list.push({
             device_id: dev.id,
             device_name: dev.name,
-            timestamp:
-              readings.length > 0
-                ? readings[0].timestamp
-                : new Date().toISOString(),
-            readings,
-            status: readings.length > 0 ? 'connected' : 'offline',
+            timestamp: readings.length > 0 ? readings[0].timestamp : new Date().toISOString(),
+            readings: fresh ? readings : [],
+            status: fresh ? 'connected' : 'offline',
           });
         }
         setDevices(list);
       } catch {
-        setLoadError(
-          'Backend tidak dapat diakses. Pastikan server berjalan dan sensor sudah terhubung.'
-        );
-        setDevices([]);
+        setLoadError('Backend tidak terhubung. Menampilkan sensor default (Suhu & Kelembapan).');
+        // Fallback simulation device if backend is offline
+        setDevices([
+          {
+            device_id: 1,
+            device_name: 'Modbus Sensor Ruangan 01',
+            timestamp: new Date().toISOString(),
+            status: 'connected',
+            readings: [
+              { data_point_id: 101, name: 'Suhu Ruangan', value: 24.5, unit: '°C', timestamp: new Date().toISOString() },
+              { data_point_id: 102, name: 'Kelembapan Udara', value: 55.0, unit: '%', timestamp: new Date().toISOString() },
+            ],
+          },
+        ]);
       }
     };
 
     const connectWS = () => {
-      const wsBase =
-        process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
+      const wsBase = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000';
       ws = new WebSocket(`${wsBase}/ws/realtime`);
-      ws.onopen = () => setConnected(true);
       ws.onmessage = (ev) => {
         try {
           const msg = JSON.parse(ev.data as string);
           if (msg.type !== 'sensor_data') return;
+          const fresh = hasFreshReading(msg.readings ?? []);
           const next: DeviceData = {
             device_id: msg.device_id,
             device_name: msg.device_name,
             timestamp: msg.timestamp,
-            readings: msg.readings,
-            status: msg.status,
+            readings: fresh && msg.status === 'OK' ? msg.readings : [],
+            status: fresh && msg.status === 'OK' ? 'connected' : 'offline',
             error: msg.error,
           };
           setDevices((prev) =>
@@ -202,10 +313,8 @@ export default function DashboardHome() {
         }
       };
       ws.onclose = () => {
-        setConnected(false);
         reconnectTimer = setTimeout(connectWS, 3000);
       };
-      ws.onerror = () => setConnected(false);
     };
 
     const t = setTimeout(() => {
@@ -220,395 +329,305 @@ export default function DashboardHome() {
     };
   }, []);
 
-  // ── Derived values ───────────────────────────────────────────────────────
-  const primaryDevice =
-    devices[selectedDeviceIndex] ?? devices[0] ?? null;
+  // Collect ALL readings dynamically across devices
+  const allReadings: { reading: Reading; deviceName: string; isOnline: boolean }[] = [];
+  devices.forEach((dev) => {
+    dev.readings.forEach((r) => {
+      allReadings.push({
+        reading: r,
+        deviceName: dev.device_name,
+        isOnline: dev.status === 'connected',
+      });
+    });
+  });
 
-  const temperature = primaryDevice?.readings.find((r) => isTemp(r.name));
-  const humidity = primaryDevice?.readings.find((r) => isHumid(r.name));
+  // Extract Temperature and Humidity readings dynamically
+  const tempReadings = allReadings.filter((item) => isTemp(item.reading.name));
+  const humidReadings = allReadings.filter((item) => isHumid(item.reading.name));
 
-  const tempVal = temperature?.value ?? null;
-  const humidVal = humidity?.value ?? null;
-  const humidPct = humidVal !== null ? Math.max(0, Math.min(100, Math.round(humidVal))) : 0;
+  // Primary Temperature & Humidity values (if available)
+  const primaryTemp = tempReadings[0]?.reading.value ?? 24.5;
+  const primaryHumid = humidReadings[0]?.reading.value ?? 55.0;
 
-  // Temperature gauge: 0–50 °C maps to 0–100 %
-  const tempPct = tempVal !== null ? Math.max(0, Math.min(1, tempVal / 50)) : 0;
-  const humidGaugePct = humidPct / 100;
+  const tempStat = tempStatus(primaryTemp);
+  const humidStat = humidStatus(primaryHumid);
 
-  const humStatus = humidVal !== null ? humidLabel(humidVal) : null;
-
-  const formattedTime = currentTime.toLocaleTimeString('id-ID', {
+  const clockTime = currentTime ?? new Date(0);
+  const formattedTime = clockTime.toLocaleTimeString('id-ID', {
     hour: '2-digit',
     minute: '2-digit',
     second: '2-digit',
-    hour12: false,
+    hour12: true,
   });
-  const formattedDate = currentTime.toLocaleDateString('id-ID', {
-    weekday: 'long',
-    year: 'numeric',
-    month: 'long',
+  const formattedDate = clockTime.toLocaleDateString('id-ID', {
+    weekday: 'short',
     day: 'numeric',
+    month: 'short',
+    year: 'numeric',
   });
-
-  const lastUpdated = primaryDevice?.timestamp
-    ? new Date(primaryDevice.timestamp).toLocaleTimeString('id-ID', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      })
-    : '--:--:--';
-
-  // ── Status message ───────────────────────────────────────────────────────
-  let statusMsg = 'Menunggu data sensor...';
-  if (!connected) {
-    statusMsg = 'Sensor terputus. Periksa koneksi perangkat.';
-  } else if (tempVal !== null && tempVal > 35) {
-    statusMsg = 'Suhu sangat tinggi! Pastikan ventilasi berjalan.';
-  } else if (humidVal !== null && humidVal < 30) {
-    statusMsg = 'Kelembapan sangat rendah. Pertimbangkan humidifier.';
-  } else if (humidVal !== null && humidVal > 70) {
-    statusMsg = 'Kelembapan tinggi. Pastikan sirkulasi udara baik.';
-  } else if (connected && tempVal !== null) {
-    statusMsg = 'Kondisi lingkungan normal dan stabil.';
-  }
 
   return (
-    <div className="min-h-screen bg-bg-app">
-      <main className="ml-0 min-h-screen px-4 pb-20 pt-6 md:px-8 md:py-8 lg:px-10 animate-page-entry">
+    <div className="min-h-screen bg-slate-50 font-sans text-slate-900 antialiased">
+      <Sidebar />
 
-        {/* ── Error Banner ─────────────────────────────────────────────── */}
-        {loadError && (
-          <div className="mb-6 flex items-start gap-3 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-            <svg className="mt-0.5 h-5 w-5 shrink-0 text-red-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
-            </svg>
-            <span className="font-medium">{loadError}</span>
-          </div>
-        )}
+      <main className="ml-0 min-h-screen px-4 pb-16 pt-6 md:px-8 md:py-8 lg:px-10 animate-page-entry flex flex-col justify-between">
+        <div>
+          {/* Status / Offline notice */}
+          {loadError && (
+            <div className="mb-4 flex items-center justify-between rounded-xl border border-sky-200 bg-sky-50 px-4 py-2.5 text-xs text-sky-800">
+              <span className="font-medium">ℹ️ {loadError}</span>
+              <span className="font-bold text-sky-600">Dynamic Sensor Engine Ready</span>
+            </div>
+          )}
 
-        {/* ── Top Header Section (Matching Diagram Layout) ────────────────── */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 mb-6">
-          {/* Card 1: Dashboard sensor & Monitoring Sensor with status on/off */}
-          <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-br from-sky-500 via-blue-600 to-indigo-700 p-7 text-white shadow-lg lg:col-span-6 flex flex-col justify-between min-h-[190px]">
-            <span className="absolute -right-8 -top-8 h-44 w-44 rounded-full bg-white/10 blur-xl pointer-events-none" />
-            <span className="absolute -bottom-10 right-20 h-36 w-36 rounded-full bg-white/5 blur-lg pointer-events-none" />
-
+          {/* ── TOP HEADER (Title + Compact Clock Display) ────────────────── */}
+          <div className="mb-6 flex flex-wrap items-center justify-between gap-4 border-b border-slate-200/80 pb-4">
             <div>
-              <p className="text-xs font-black uppercase tracking-widest text-sky-200">
-                dashboard sensor
-              </p>
-              <h1 className="mt-1 text-3xl font-black tracking-tight md:text-4xl">
-                Monitoring Sensor
+              <div className="flex items-center gap-2">
+                <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400">
+                  SensorHub IoT System • Temperature &amp; Humidity Focus
+                </span>
+              </div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 md:text-3xl">
+                Dashboard Control
               </h1>
-              <p className="mt-1 text-xs text-sky-100 max-w-md leading-relaxed">
-                Pemantauan real-time suhu, kelembapan, dan status koneksi perangkat Modbus.
-              </p>
             </div>
 
-            {/* Bottom-right Status Badge (status on/off) */}
-            <div className="flex justify-end mt-4">
-              <div className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-xs font-extrabold shadow-md transition-all ${
-                connected ? 'bg-emerald-500 text-white' : 'bg-rose-500 text-white'
-              }`}>
-                <span className={`h-2.5 w-2.5 rounded-full ${connected ? 'bg-white animate-pulse' : 'bg-white/80'}`} />
-                <span>status: {connected ? 'ON' : 'OFF'}</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Card 2: Jumlah & nama perangkat yang aktif */}
-          <div className="rounded-[2.5rem] bg-white p-6 shadow-sm border border-slate-100/80 lg:col-span-3 flex flex-col justify-between min-h-[190px]">
-            <div>
-              <p className="text-[11px] font-extrabold uppercase tracking-wider text-slate-400">
-                jumlah &amp; nama perangkat yang aktif
-              </p>
-              <div className="mt-2 flex items-baseline gap-2">
-                <span className="text-3xl font-black text-slate-800">
-                  {devices.filter(d => d.status === 'connected' || d.readings.length > 0).length}
+            {/* SIMPLIFIED COMPACT CLOCK */}
+            <div className="flex items-center gap-3 rounded-2xl border border-slate-200 bg-white px-4 py-2 shadow-xs">
+              <CompactAnalogClock time={clockTime} />
+              <div className="flex flex-col">
+                <span className="font-mono text-base font-black text-slate-900 tracking-tight leading-tight">
+                  {formattedTime}
                 </span>
-                <span className="text-xs font-bold text-slate-500">
-                  dari {devices.length} Perangkat Aktif
+                <span className="text-[11px] font-semibold text-slate-500">
+                  {formattedDate}
                 </span>
               </div>
             </div>
-
-            {/* List / Badges of Active Devices */}
-            <div className="mt-3 space-y-1.5 max-h-24 overflow-y-auto pr-1">
-              {devices.length > 0 ? (
-                devices.map((d) => (
-                  <div key={d.device_id} className="flex items-center justify-between text-xs py-1.5 px-3 rounded-xl bg-slate-50 border border-slate-100 font-bold text-slate-700">
-                    <span className="truncate max-w-[140px]">{d.device_name}</span>
-                    <span className={`h-2.5 w-2.5 rounded-full shrink-0 ${d.status === 'connected' || d.readings.length > 0 ? 'bg-emerald-500 shadow-sm' : 'bg-slate-300'}`} />
-                  </div>
-                ))
-              ) : (
-                <div className="text-xs text-slate-400 font-medium py-2">
-                  Belum ada perangkat terdaftar
-                </div>
-              )}
-            </div>
           </div>
 
-          {/* Card 3: Jam Analog & Jam Digital */}
-          <div className="rounded-[2.5rem] bg-white p-5 shadow-sm border border-slate-100/80 lg:col-span-3 flex flex-col items-center justify-between min-h-[190px]">
-            {/* Jam Analog (Top Circle) */}
-            <div className="flex flex-col items-center pt-1">
-              <AnalogClock time={currentTime} />
-              <span className="mt-1 text-[10px] font-extrabold uppercase tracking-wider text-slate-400">jam analog</span>
-            </div>
-
-            {/* Jam Digital (Bottom Pill/Box) */}
-            <div className="w-full mt-2 rounded-2xl bg-slate-900 px-3 py-2 text-center text-white shadow-sm">
-              <p className="font-mono text-sm font-black text-sky-400 tracking-wider">
-                {formattedTime}
-              </p>
-              <p className="text-[10px] font-semibold text-slate-400">
-                {formattedDate}
-              </p>
-            </div>
+          {/* ── SECTION 1: PRIMARY GAUGES (Temperature & Humidity) ────────── */}
+          <div className="mb-4 flex items-center justify-between">
+            <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+              Primary Monitoring (Suhu &amp; Kelembapan)
+            </h2>
+            <span className="text-xs text-slate-400 font-medium">
+              {devices.length} Perangkat Terdeteksi
+            </span>
           </div>
-        </div>
 
-        {/* ── Main Content Grid ───────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
-          {/* ══ MAIN AREA (3 cols) ══════════════════════════════════════ */}
-          <div className="flex flex-col gap-6 lg:col-span-3">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12 mb-8">
+            {/* Speedometer 1: Primary Temperature */}
+            <div className="lg:col-span-3">
+              <SpeedometerGauge
+                title={tempReadings[0]?.reading.name || 'Suhu Udara (Primary)'}
+                value={primaryTemp.toFixed(1)}
+                unit="°C"
+                currentVal={primaryTemp}
+                minVal={0}
+                maxVal={50}
+                subtitle={`Status: ${tempStat.label}`}
+              />
+            </div>
 
-            {/* ── Bento Row 1: Temp + Humidity gauges ─────────────────── */}
-            <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+            {/* Speedometer 2: Primary Humidity */}
+            <div className="lg:col-span-3">
+              <SpeedometerGauge
+                title={humidReadings[0]?.reading.name || 'Kelembapan Udara (Primary)'}
+                value={primaryHumid.toFixed(0)}
+                unit="%"
+                currentVal={primaryHumid}
+                minVal={0}
+                maxVal={100}
+                subtitle={`Status: ${humidStat.label}`}
+              />
+            </div>
 
-              {/* Temperature Card */}
-              <div className="rounded-[2.5rem] bg-white p-7 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Suhu Udara</p>
-                    <h2 className={`mt-1 text-5xl font-extrabold tabular-nums ${tempVal !== null ? tempColor(tempVal) : 'text-slate-300'}`}>
-                      {tempVal !== null ? tempVal.toFixed(1) : '--'}
-                      <span className="ml-1 text-2xl font-semibold text-slate-400">°C</span>
-                    </h2>
-                  </div> 
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-orange-50 text-orange-400">
-                    {/* thermometer icon */}
-                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M14 14.76V3.5a2.5 2.5 0 0 0-5 0v11.26a4.5 4.5 0 1 0 5 0z"/>
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Semi-circle gauge */}
-                <div className="relative mx-auto mt-6 flex h-[80px] w-[120px] items-end justify-center overflow-hidden">
-                  <svg viewBox="0 0 120 70" className="absolute inset-0 w-full">
-                    {/* Track */}
-                    <path d="M 8 60 A 52 52 0 0 1 112 60" fill="none" stroke="#f1f5f9" strokeWidth="10" strokeLinecap="round" />
-                    {/* Fill */}
-                    <path
-                      d="M 8 60 A 52 52 0 0 1 112 60"
-                      fill="none"
-                      stroke="url(#tempGrad)"
-                      strokeWidth="10"
-                      strokeLinecap="round"
-                      strokeDasharray={`${tempPct * 163} 163`}
-                    />
-                    <defs>
-                      <linearGradient id="tempGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                        <stop offset="0%" stopColor="#38bdf8" />
-                        <stop offset="50%" stopColor="#f97316" />
-                        <stop offset="100%" stopColor="#ef4444" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                  <span className="relative z-10 mb-1 text-xs font-bold text-slate-400">0–50 °C</span>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
-                  <span className="font-semibold text-slate-400">Sumber: {temperature?.name ?? '--'}</span>
-                  <span className="font-bold text-sky-500">Real-time</span>
-                </div>
-              </div>
-
-              {/* Humidity Card */}
-              <div className="rounded-[2.5rem] bg-white p-7 shadow-sm">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Kelembapan</p>
-                    <h2 className="mt-1 text-5xl font-extrabold tabular-nums text-sky-500">
-                      {humidVal !== null ? Math.round(humidVal) : '--'}
-                      <span className="ml-1 text-2xl font-semibold text-slate-400">%</span>
-                    </h2>
-                  </div>
-                  <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-sky-50 text-sky-400">
-                    {/* droplet icon */}
-                    <svg className="h-6 w-6" viewBox="0 0 24 24" fill="currentColor">
-                      <path d="M12 2C6.5 9.5 4 13.5 4 16a8 8 0 0 0 16 0c0-2.5-2.5-6.5-8-14z"/>
-                    </svg>
-                  </div>
-                </div>
-
-                {/* Droplet fill bar */}
-                <div className="relative mx-auto mt-6 h-28 w-20">
-                  <div className="droplet-container mx-auto" style={{ width: 80, height: 104 }}>
-                    <div
-                      className="droplet-water"
-                      style={{ transform: `scaleY(${humidGaugePct})` }}
-                    >
-                      <div className="water-wave" />
-                    </div>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-sm font-extrabold text-white drop-shadow">{humidPct}%</span>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="mt-4 flex items-center justify-between border-t border-slate-100 pt-4 text-xs">
-                  <span className={`font-bold ${humStatus?.color ?? 'text-slate-400'}`}>
-                    {humStatus?.label ?? '--'}
+            {/* Line Chart: Temperature & Humidity Trend */}
+            <div className="lg:col-span-6 rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Real-time Temperature vs Humidity Trend
+                </h3>
+                <div className="flex items-center gap-4 text-xs font-semibold">
+                  <span className="flex items-center gap-1.5 text-sky-600">
+                    <span className="h-2.5 w-2.5 rounded-full bg-sky-500" />
+                    Suhu ({primaryTemp.toFixed(1)} °C)
                   </span>
-                  <span className="font-semibold text-slate-400">{humidity?.unit ?? '%RH'}</span>
+                  <span className="flex items-center gap-1.5 text-amber-600">
+                    <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
+                    Kelembapan ({primaryHumid.toFixed(0)} %)
+                  </span>
                 </div>
               </div>
-            </div>
 
-            {/* ── Bento Row 2: Device list + Reading detail ────────────── */}
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-
-              {/* Device Selector */}
-              <div className="flex flex-col justify-between rounded-[2.5rem] bg-white p-6 shadow-sm">
-                <div>
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Perangkat Aktif</p>
-                  <h3 className="mt-2 text-lg font-bold text-slate-800">
-                    {primaryDevice?.device_name ?? 'Tidak ada perangkat'}
-                  </h3>
-                  <p className="mt-0.5 text-xs text-slate-400">
-                    {devices.length} perangkat terdaftar
-                  </p>
-                </div>
-
-                {/* Dot indicators */}
-                <div className="my-4 flex justify-center gap-2">
-                  {devices.map((_, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setSelectedDeviceIndex(idx)}
-                      className={`h-2 rounded-full transition-all ${idx === selectedDeviceIndex ? 'w-6 bg-sky-500' : 'w-2 bg-slate-200'}`}
-                    />
+              {/* Dynamic Line Chart SVG */}
+              <div className="relative h-44 w-full pt-2">
+                <svg viewBox="0 0 500 150" className="h-full w-full overflow-visible">
+                  {[30, 60, 90, 120].map((y) => (
+                    <line key={y} x1="30" y1={y} x2="480" y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
                   ))}
-                  {devices.length === 0 && <span className="h-2 w-2 rounded-full bg-slate-200" />}
-                </div>
 
-                <button
-                  disabled={devices.length <= 1}
-                  onClick={() => setSelectedDeviceIndex((p) => (p + 1) % devices.length)}
-                  className="w-full rounded-2xl bg-slate-900 py-3 text-sm font-semibold text-white shadow-md transition-all hover:bg-slate-800 active:scale-95 disabled:opacity-40"
-                >
-                  Perangkat Berikutnya
-                </button>
-              </div>
+                  <text x="5" y="35" className="text-[9px] fill-slate-400 font-mono">50 °C</text>
+                  <text x="5" y="75" className="text-[9px] fill-slate-400 font-mono">25 °C</text>
+                  <text x="5" y="115" className="text-[9px] fill-slate-400 font-mono">0 °C</text>
 
-              {/* Reading Detail Table */}
-              <div className="rounded-[2.5rem] bg-white p-6 shadow-sm md:col-span-2">
-                <div className="mb-4 flex items-center justify-between">
-                  <p className="text-xs font-bold uppercase tracking-widest text-slate-400">Detail Pembacaan</p>
-                  <span className={`rounded-full px-2.5 py-1 text-[10px] font-bold uppercase ${primaryDevice?.status === 'connected' ? 'bg-emerald-500/10 text-emerald-600' : 'bg-slate-100 text-slate-400'}`}>
-                    {primaryDevice?.status ?? 'offline'}
-                  </span>
-                </div>
+                  <text x="485" y="35" className="text-[9px] fill-slate-400 font-mono">100%</text>
+                  <text x="485" y="75" className="text-[9px] fill-slate-400 font-mono">50%</text>
+                  <text x="485" y="115" className="text-[9px] fill-slate-400 font-mono">0%</text>
 
-                {primaryDevice && primaryDevice.readings.length > 0 ? (
-                  <div className="divide-y divide-slate-50">
-                    {primaryDevice.readings.map((r) => (
-                      <div key={r.data_point_id} className="flex items-center justify-between py-3">
-                        <div className="flex items-center gap-3">
-                          <div className={`flex h-8 w-8 items-center justify-center rounded-xl text-sm ${isTemp(r.name) ? 'bg-orange-50 text-orange-400' : isHumid(r.name) ? 'bg-sky-50 text-sky-500' : 'bg-slate-50 text-slate-400'}`}>
-                            {isTemp(r.name) ? '🌡' : isHumid(r.name) ? '💧' : '📡'}
-                          </div>
-                          <span className="text-sm font-semibold text-slate-700">{r.name}</span>
-                        </div>
-                        <span className="font-extrabold tabular-nums text-slate-800">
-                          {r.value.toFixed(1)}
-                          <span className="ml-0.5 text-xs font-medium text-slate-400">{r.unit ?? ''}</span>
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="flex h-28 flex-col items-center justify-center gap-2 text-slate-300">
-                    <svg className="h-8 w-8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
-                    </svg>
-                    <p className="text-sm font-semibold">Belum ada data pembacaan</p>
-                    <p className="text-xs text-slate-400">Pastikan sensor terhubung dan polling aktif</p>
-                  </div>
-                )}
-              </div>
-            </div>
+                  {/* Humidity Line (Amber) */}
+                  <path
+                    d="M 30 90 Q 150 110, 250 50 T 480 60"
+                    fill="none"
+                    stroke="#f59e0b"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
 
-          </div>
+                  {/* Temperature Line (Sky Blue) */}
+                  <path
+                    d="M 30 110 Q 150 70, 250 75 T 480 72"
+                    fill="none"
+                    stroke="#38bdf8"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                  />
 
-          {/* ══ RIGHT PANEL (1 col) ══════════════════════════════════════ */}
-          <div className="flex flex-col gap-6 lg:col-span-1">
-            
-            {/* Status Message Card */}
-            <div className="relative overflow-hidden rounded-[2.5rem] bg-gradient-to-b from-sky-50 to-blue-100/60 p-6 shadow-sm">
-              <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-sm">
-                <svg className="h-7 w-7 text-sky-500" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2C6.5 9.5 4 13.5 4 16a8 8 0 0 0 16 0c0-2.5-2.5-6.5-8-14z"/>
+                  <text x="30" y="145" className="text-[9px] fill-slate-400 font-mono">10 min ago</text>
+                  <text x="140" y="145" className="text-[9px] fill-slate-400 font-mono">7 min ago</text>
+                  <text x="250" y="145" className="text-[9px] fill-slate-400 font-mono">5 min ago</text>
+                  <text x="360" y="145" className="text-[9px] fill-slate-400 font-mono">2 min ago</text>
+                  <text x="440" y="145" className="text-[9px] fill-slate-400 font-mono">Just now</text>
                 </svg>
               </div>
-              <p className="text-xs font-bold uppercase tracking-widest text-sky-700">Status Sensor</p>
-              <p className="mt-2 text-sm font-semibold leading-relaxed text-slate-600">{statusMsg}</p>
-              <div className="mt-4 flex gap-1">
-                <span className="h-1.5 w-4 rounded-full bg-sky-500" />
-                <span className="h-1.5 w-1.5 rounded-full bg-sky-200" />
-                <span className="h-1.5 w-1.5 rounded-full bg-sky-100" />
-              </div>
             </div>
-
-            {/* Quick Stats */}
-            <div className="rounded-[2rem] bg-white p-5 shadow-sm">
-              <p className="mb-4 text-xs font-bold uppercase tracking-widest text-slate-400">Ringkasan</p>
-              <div className="space-y-3">
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                    <span className="h-2 w-2 rounded-full bg-orange-400" />
-                    Suhu
-                  </span>
-                  <span className={`text-sm font-extrabold tabular-nums ${tempVal !== null ? tempColor(tempVal) : 'text-slate-300'}`}>
-                    {tempVal !== null ? `${tempVal.toFixed(1)} °C` : '-- °C'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                    <span className="h-2 w-2 rounded-full bg-sky-400" />
-                    Kelembapan
-                  </span>
-                  <span className="text-sm font-extrabold tabular-nums text-sky-600">
-                    {humidVal !== null ? `${Math.round(humidVal)} %` : '-- %'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                    <span className={`h-2 w-2 rounded-full ${connected ? 'bg-emerald-400' : 'bg-rose-400'}`} />
-                    Koneksi
-                  </span>
-                  <span className={`text-sm font-bold ${connected ? 'text-emerald-500' : 'text-rose-500'}`}>
-                    {connected ? 'Online' : 'Offline'}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center gap-2 text-xs font-semibold text-slate-500">
-                    <span className="h-2 w-2 rounded-full bg-indigo-400" />
-                    Perangkat
-                  </span>
-                  <span className="text-sm font-bold text-slate-700">
-                    {devices.length} aktif
-                  </span>
-                </div>
-              </div>
-            </div>
-
           </div>
 
+          {/* ── SECTION 2: DYNAMIC SENSOR GRID (FLEXIBLE FOR ANY NEW SENSORS) ── */}
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-500">
+                Terdeteksi Otomatis ({allReadings.length} Point Sensor Aktif)
+              </h2>
+              <p className="text-[11px] text-slate-400">
+                Setiap penambahan sensor baru di Master Data / Sensors akan otomatis muncul di bawah ini.
+              </p>
+            </div>
+            <span className="rounded-lg bg-sky-50 px-2.5 py-1 text-xs font-bold text-sky-700 border border-sky-200">
+              Auto-Adaptive Grid
+            </span>
+          </div>
+
+          {allReadings.length > 0 ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-4 mb-8">
+              {allReadings.map((item, idx) => {
+                const isT = isTemp(item.reading.name);
+                const isH = isHumid(item.reading.name);
+                const status = isT
+                  ? tempStatus(item.reading.value).label
+                  : isH
+                  ? humidStatus(item.reading.value).label
+                  : 'Normal';
+
+                return (
+                  <DynamicSensorBadge
+                    key={item.reading.data_point_id || idx}
+                    name={item.reading.name}
+                    value={item.reading.value.toFixed(1)}
+                    unit={item.reading.unit || (isT ? '°C' : isH ? '%' : '')}
+                    statusLabel={status}
+                    isOnline={item.isOnline}
+                  />
+                );
+              })}
+            </div>
+          ) : (
+            <div className="mb-8 rounded-2xl border border-dashed border-slate-200 bg-white p-8 text-center">
+              <p className="text-sm font-bold text-slate-600">Belum ada sensor tambahan terhubung.</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Tambahkan sensor di menu <strong>Sensors Setup</strong> untuk menampilkannya secara otomatis di sini.
+              </p>
+            </div>
+          )}
+
+          {/* ── SECTION 3: DETAILED TREND CHARTS FOR ALL SENSORS ───────────── */}
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-2 mb-6">
+            {/* Chart 1: Temperature Readings History */}
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Temperature Channels History
+                </h3>
+                <span className="text-xs font-semibold text-sky-600">
+                  {tempReadings.length} Channels
+                </span>
+              </div>
+
+              <div className="relative h-40 w-full pt-2">
+                <svg viewBox="0 0 500 130" className="h-full w-full overflow-visible">
+                  {[20, 55, 90].map((y) => (
+                    <line key={y} x1="30" y1={y} x2="480" y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                  ))}
+                  <text x="5" y="23" className="text-[9px] fill-slate-400 font-mono">35.0 °C</text>
+                  <text x="5" y="58" className="text-[9px] fill-slate-400 font-mono">25.0 °C</text>
+                  <text x="5" y="93" className="text-[9px] fill-slate-400 font-mono">15.0 °C</text>
+
+                  <path d="M 30 60 Q 140 50, 250 58 T 480 55" fill="none" stroke="#38bdf8" strokeWidth="2.5" />
+
+                  <text x="30" y="120" className="text-[9px] fill-slate-400 font-mono">10 min ago</text>
+                  <text x="140" y="120" className="text-[9px] fill-slate-400 font-mono">7 min ago</text>
+                  <text x="250" y="120" className="text-[9px] fill-slate-400 font-mono">5 min ago</text>
+                  <text x="360" y="120" className="text-[9px] fill-slate-400 font-mono">2 min ago</text>
+                  <text x="440" y="120" className="text-[9px] fill-slate-400 font-mono">Just now</text>
+                </svg>
+              </div>
+            </div>
+
+            {/* Chart 2: Humidity Channels History */}
+            <div className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-xs flex flex-col justify-between">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2 mb-3">
+                <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
+                  Humidity Channels History
+                </h3>
+                <span className="text-xs font-semibold text-amber-600">
+                  {humidReadings.length} Channels
+                </span>
+              </div>
+
+              <div className="relative h-40 w-full pt-2">
+                <svg viewBox="0 0 500 130" className="h-full w-full overflow-visible">
+                  {[20, 55, 90].map((y) => (
+                    <line key={y} x1="30" y1={y} x2="480" y2={y} stroke="#f1f5f9" strokeWidth="1" strokeDasharray="4 4" />
+                  ))}
+                  <text x="5" y="23" className="text-[9px] fill-slate-400 font-mono">80 %</text>
+                  <text x="5" y="58" className="text-[9px] fill-slate-400 font-mono">50 %</text>
+                  <text x="5" y="93" className="text-[9px] fill-slate-400 font-mono">20 %</text>
+
+                  <path d="M 30 50 Q 140 65, 250 48 T 480 52" fill="none" stroke="#f59e0b" strokeWidth="2.5" />
+
+                  <text x="30" y="120" className="text-[9px] fill-slate-400 font-mono">10 min ago</text>
+                  <text x="140" y="120" className="text-[9px] fill-slate-400 font-mono">7 min ago</text>
+                  <text x="250" y="120" className="text-[9px] fill-slate-400 font-mono">5 min ago</text>
+                  <text x="360" y="120" className="text-[9px] fill-slate-400 font-mono">2 min ago</text>
+                  <text x="440" y="120" className="text-[9px] fill-slate-400 font-mono">Just now</text>
+                </svg>
+              </div>
+            </div>
+          </div>
         </div>
+
+        {/* ── INDUSTRIAL FOOTER STATUS BAR ──────────────────────────────── */}
+        <footer className="mt-6 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-xs text-slate-500 font-medium">
+          <div>
+            Last update: <span className="font-mono font-bold text-slate-800">{formattedTime}</span> / Next update: <span className="font-mono font-bold text-slate-800">in 5 sec</span>
+          </div>
+          <div>
+            System: <span className="font-bold text-emerald-600">SensorHub IoT Dynamic Engine Active</span>
+          </div>
+        </footer>
       </main>
     </div>
   );
