@@ -181,6 +181,12 @@ function SpeedometerGauge({
         </svg>
       </div>
 
+      <div className="flex justify-between px-2 text-[10px] font-mono font-semibold text-slate-400">
+        <span>{minVal}</span>
+        <span>Range</span>
+        <span>{maxVal}</span>
+      </div>
+
       <div className="text-center pt-2 border-t border-slate-100 mt-2">
         <span className="text-[11px] font-medium text-slate-500 truncate block">{subtitle}</span>
       </div>
@@ -270,8 +276,10 @@ export default function DashboardHome() {
         }
         setDevices(list);
       } catch {
-        setLoadError('Backend tidak terhubung. Menampilkan sensor default (Suhu & Kelembapan).');
+        setLoadError('Backend tidak terhubung. Tidak ada data sensor yang ditampilkan.');
         // Fallback simulation device if backend is offline
+        setDevices([]);
+        /*
         setDevices([
           {
             device_id: 1,
@@ -283,7 +291,7 @@ export default function DashboardHome() {
               { data_point_id: 102, name: 'Kelembapan Udara', value: 55.0, unit: '%', timestamp: new Date().toISOString() },
             ],
           },
-        ]);
+        ]); */
       }
     };
 
@@ -346,11 +354,11 @@ export default function DashboardHome() {
   const humidReadings = allReadings.filter((item) => isHumid(item.reading.name));
 
   // Primary Temperature & Humidity values (if available)
-  const primaryTemp = tempReadings[0]?.reading.value ?? 24.5;
-  const primaryHumid = humidReadings[0]?.reading.value ?? 55.0;
+  const primaryTemp = tempReadings[0]?.reading.value ?? null;
+  const primaryHumid = humidReadings[0]?.reading.value ?? null;
 
-  const tempStat = tempStatus(primaryTemp);
-  const humidStat = humidStatus(primaryHumid);
+  const tempStat = primaryTemp === null ? { label: 'No data' } : tempStatus(primaryTemp);
+  const humidStat = primaryHumid === null ? { label: 'No data' } : humidStatus(primaryHumid);
 
   const clockTime = currentTime ?? new Date(0);
   const formattedTime = clockTime.toLocaleTimeString('id-ID', {
@@ -423,9 +431,9 @@ export default function DashboardHome() {
             <div className="lg:col-span-3">
               <SpeedometerGauge
                 title={tempReadings[0]?.reading.name || 'Suhu Udara (Primary)'}
-                value={primaryTemp.toFixed(1)}
+                 value={primaryTemp === null ? '--' : primaryTemp.toFixed(1)}
                 unit="°C"
-                currentVal={primaryTemp}
+                 currentVal={primaryTemp ?? 0}
                 minVal={0}
                 maxVal={50}
                 subtitle={`Status: ${tempStat.label}`}
@@ -436,9 +444,9 @@ export default function DashboardHome() {
             <div className="lg:col-span-3">
               <SpeedometerGauge
                 title={humidReadings[0]?.reading.name || 'Kelembapan Udara (Primary)'}
-                value={primaryHumid.toFixed(0)}
+                 value={primaryHumid === null ? '--' : primaryHumid.toFixed(0)}
                 unit="%"
-                currentVal={primaryHumid}
+                 currentVal={primaryHumid ?? 0}
                 minVal={0}
                 maxVal={100}
                 subtitle={`Status: ${humidStat.label}`}
@@ -454,11 +462,11 @@ export default function DashboardHome() {
                 <div className="flex items-center gap-4 text-xs font-semibold">
                   <span className="flex items-center gap-1.5 text-sky-600">
                     <span className="h-2.5 w-2.5 rounded-full bg-sky-500" />
-                    Suhu ({primaryTemp.toFixed(1)} °C)
+                     Suhu ({primaryTemp === null ? '--' : primaryTemp.toFixed(1)} °C)
                   </span>
                   <span className="flex items-center gap-1.5 text-amber-600">
                     <span className="h-2.5 w-2.5 rounded-full bg-amber-500" />
-                    Kelembapan ({primaryHumid.toFixed(0)} %)
+                     Kelembapan ({primaryHumid === null ? '--' : primaryHumid.toFixed(0)} %)
                   </span>
                 </div>
               </div>
@@ -480,7 +488,7 @@ export default function DashboardHome() {
 
                   {/* Humidity Line (Amber) */}
                   <path
-                    d="M 30 90 Q 150 110, 250 50 T 480 60"
+                     d={humidReadings.length > 1 ? 'M 30 90 Q 150 110, 250 50 T 480 60' : ''}
                     fill="none"
                     stroke="#f59e0b"
                     strokeWidth="3"
@@ -489,18 +497,14 @@ export default function DashboardHome() {
 
                   {/* Temperature Line (Sky Blue) */}
                   <path
-                    d="M 30 110 Q 150 70, 250 75 T 480 72"
+                     d={tempReadings.length > 1 ? 'M 30 110 Q 150 70, 250 75 T 480 72' : ''}
                     fill="none"
                     stroke="#38bdf8"
                     strokeWidth="3"
                     strokeLinecap="round"
                   />
 
-                  <text x="30" y="145" className="text-[9px] fill-slate-400 font-mono">10 min ago</text>
-                  <text x="140" y="145" className="text-[9px] fill-slate-400 font-mono">7 min ago</text>
-                  <text x="250" y="145" className="text-[9px] fill-slate-400 font-mono">5 min ago</text>
-                  <text x="360" y="145" className="text-[9px] fill-slate-400 font-mono">2 min ago</text>
-                  <text x="440" y="145" className="text-[9px] fill-slate-400 font-mono">Just now</text>
+                  {allReadings.length === 0 && <text x="180" y="80" className="text-[10px] fill-slate-400 font-mono">Belum ada data aktual</text>}
                 </svg>
               </div>
             </div>
@@ -575,13 +579,9 @@ export default function DashboardHome() {
                   <text x="5" y="58" className="text-[9px] fill-slate-400 font-mono">25.0 °C</text>
                   <text x="5" y="93" className="text-[9px] fill-slate-400 font-mono">15.0 °C</text>
 
-                  <path d="M 30 60 Q 140 50, 250 58 T 480 55" fill="none" stroke="#38bdf8" strokeWidth="2.5" />
+                   <path d={tempReadings.length > 1 ? 'M 30 60 Q 140 50, 250 58 T 480 55' : ''} fill="none" stroke="#38bdf8" strokeWidth="2.5" />
 
-                  <text x="30" y="120" className="text-[9px] fill-slate-400 font-mono">10 min ago</text>
-                  <text x="140" y="120" className="text-[9px] fill-slate-400 font-mono">7 min ago</text>
-                  <text x="250" y="120" className="text-[9px] fill-slate-400 font-mono">5 min ago</text>
-                  <text x="360" y="120" className="text-[9px] fill-slate-400 font-mono">2 min ago</text>
-                  <text x="440" y="120" className="text-[9px] fill-slate-400 font-mono">Just now</text>
+                  {tempReadings.length === 0 && <text x="180" y="70" className="text-[10px] fill-slate-400 font-mono">Belum ada data aktual</text>}
                 </svg>
               </div>
             </div>
@@ -606,13 +606,9 @@ export default function DashboardHome() {
                   <text x="5" y="58" className="text-[9px] fill-slate-400 font-mono">50 %</text>
                   <text x="5" y="93" className="text-[9px] fill-slate-400 font-mono">20 %</text>
 
-                  <path d="M 30 50 Q 140 65, 250 48 T 480 52" fill="none" stroke="#f59e0b" strokeWidth="2.5" />
+                   <path d={humidReadings.length > 1 ? 'M 30 50 Q 140 65, 250 48 T 480 52' : ''} fill="none" stroke="#f59e0b" strokeWidth="2.5" />
 
-                  <text x="30" y="120" className="text-[9px] fill-slate-400 font-mono">10 min ago</text>
-                  <text x="140" y="120" className="text-[9px] fill-slate-400 font-mono">7 min ago</text>
-                  <text x="250" y="120" className="text-[9px] fill-slate-400 font-mono">5 min ago</text>
-                  <text x="360" y="120" className="text-[9px] fill-slate-400 font-mono">2 min ago</text>
-                  <text x="440" y="120" className="text-[9px] fill-slate-400 font-mono">Just now</text>
+                  {humidReadings.length === 0 && <text x="180" y="70" className="text-[10px] fill-slate-400 font-mono">Belum ada data aktual</text>}
                 </svg>
               </div>
             </div>
